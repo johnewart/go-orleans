@@ -8,6 +8,8 @@ import (
 	"github.com/johnewart/go-orleans/cluster/table"
 	"github.com/johnewart/go-orleans/grain"
 	pb "github.com/johnewart/go-orleans/proto/silo"
+	"github.com/johnewart/go-orleans/silo/locator"
+	"github.com/johnewart/go-orleans/silo/state/store"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"strconv"
@@ -28,37 +30,61 @@ type Service struct {
 	metrics           *MetricsRegistry
 	silo              cluster.Member
 	grainHandler      *GrainHandler
+	grainLocator      locator.GrainLocator
 }
 
-func NewSiloService(ctx context.Context, metricsPort int, servicePort int, routableIP string, heartbeatInterval time.Duration, dsn string) (*Service, error) {
+type ServiceConfig struct {
+	RedisHostPort    string
+	TableStoreDSN    string
+	HearbeatInterval time.Duration
+	RoutableIP       string
+	MetricsPort      int
+	ServicePort      int
+}
+
+func NewSiloService(ctx context.Context, config ServiceConfig) (*Service, error) {
+
 	tableConfig := table.Config{
 		SuspicionWindow: 60 * time.Second,
 		SuspicionQuorum: 2,
 	}
 
-	if store, err := storage.NewPostgresqlMemberStore(dsn); err != nil {
-		return nil, err
-	} else {
-		startEpoch := time.Now().UnixMicro()
-		membershipTable := table.NewTable(ctx, store, tableConfig)
-		member := cluster.Member{
-			IP:    routableIP,
-			Port:  servicePort,
-			Epoch: startEpoch,
-		}
-
-		return &Service{
-			ctx:               ctx,
-			membershipTable:   membershipTable,
-			routableIP:        routableIP,
-			servicePort:       servicePort,
-			startEpoch:        startEpoch,
-			heartbeatInterval: heartbeatInterval,
-			metrics:           NewMetricRegistry(metricsPort),
-			silo:              member,
-			grainHandler:      NewSiloGrainHandler(),
-		}, nil
+	locationStore := locator.NewRedisLocator(config.RedisHostPort)
+	if !locationStore.Healthy() {
+		return nil, fmt.Errorf("unable to connect to redis at %v", config.RedisHostPort)
 	}
+
+	stateStore := store.NewRedisGrainStateStore(config.RedisHostPort)
+	if !stateStore.Healthy() {
+		return nil, fmt.Errorf("unable to connect to redis at %v", config.RedisHostPort)
+	}
+
+	tableStore, err := storage.NewPostgresqlMemberStore(config.TableStoreDSN)
+	if err != nil {
+		return nil, err
+	}
+
+	startEpoch := time.Now().UnixMicro()
+	membershipTable := table.NewTable(ctx, tableStore, tableConfig)
+	member := cluster.Member{
+		IP:    config.RoutableIP,
+		Port:  config.ServicePort,
+		Epoch: startEpoch,
+	}
+
+	return &Service{
+		ctx:               ctx,
+		membershipTable:   membershipTable,
+		routableIP:        config.RoutableIP,
+		servicePort:       config.ServicePort,
+		startEpoch:        startEpoch,
+		heartbeatInterval: config.HearbeatInterval,
+		metrics:           NewMetricRegistry(config.MetricsPort),
+		silo:              member,
+		grainHandler:      NewSiloGrainHandler(),
+		grainLocator:      locationStore,
+	}, nil
+
 }
 
 func (s *Service) Ping(_ context.Context, _ *emptypb.Empty) (*pb.PingResponse, error) {
@@ -67,9 +93,51 @@ func (s *Service) Ping(_ context.Context, _ *emptypb.Empty) (*pb.PingResponse, e
 	}, nil
 }
 
+func (s *Service) BounceExecutionRequest(ctx context.Context, targetHostPort string, req *pb.ExecuteGrainRequest) (*pb.ExecuteGrainResponse, error) {
+	if conn, err := grpc.Dial(targetHostPort, grpc.WithInsecure()); err != nil {
+		return nil, fmt.Errorf("unable to connect to %v: %v", targetHostPort, err)
+	} else {
+		client := pb.NewSiloServiceClient(conn)
+
+		if res, bounceErr := client.ExecuteGrain(ctx, req); bounceErr != nil {
+			return nil, fmt.Errorf("unable to bounce grain: %v", bounceErr)
+		} else {
+			return res, nil
+		}
+	}
+}
+
 func (s *Service) ExecuteGrain(ctx context.Context, req *pb.ExecuteGrainRequest) (*pb.ExecuteGrainResponse, error) {
-	log.Infof(ctx, "Can we handle this grain? (%v)", req.GrainType)
-	if s.silo.CanHandle(req.GrainType) {
+	existing, err := s.grainLocator.GetSilo(req.GrainType, req.GrainId)
+	if err != nil {
+		return nil, fmt.Errorf("unable to locate grain: %v", err)
+	}
+
+	shouldHandle := false
+
+	if existing != nil {
+		if (existing.IP == s.routableIP) && (existing.Port == s.servicePort) {
+			log.Infof(s.ctx, "grain %v already located on this silo", req.GrainId)
+			shouldHandle = true
+		} else {
+			log.Infof(ctx, "Grain %s/%s already exists at %v", req.GrainType, req.GrainId, existing)
+			shouldHandle = false
+			return s.BounceExecutionRequest(ctx, fmt.Sprintf("%v:%v", existing.IP, existing.Port), req)
+		}
+	} else {
+		log.Infof(ctx, "Grain %s/%s does not exist", req.GrainType, req.GrainId)
+		log.Infof(ctx, "Can we handle this grain? (%v)", req.GrainType)
+		if s.silo.CanHandle(req.GrainType) {
+			log.Infof(ctx, "Yes, we can handle this grain")
+
+			if locErr := s.grainLocator.PutSilo(req.GrainType, req.GrainId, s.silo); locErr != nil {
+				return nil, fmt.Errorf("unable to record grain existence in this silo: %v", locErr)
+			}
+			shouldHandle = true
+		}
+	}
+
+	if shouldHandle {
 		log.Infof(ctx, "Executing grain %v", req.GrainType)
 		if r, err := s.grainHandler.Handle(ctx, req.GrainType, req.Data); err != nil {
 			return &pb.ExecuteGrainResponse{
@@ -85,11 +153,20 @@ func (s *Service) ExecuteGrain(ctx context.Context, req *pb.ExecuteGrainRequest)
 		}
 	} else {
 		log.Infof(ctx, "Grain %v is not compatible with silo %v", req.GrainType, s.silo)
+
+		log.Infof(ctx, "Locating compatible silo for %v", req.GrainType)
+		for _, member := range s.membershipTable.Members {
+			if member.CanHandle(req.GrainType) {
+				log.Infof(ctx, "Bouncing grain %v to %v", req.GrainType, member)
+				return s.BounceExecutionRequest(ctx, fmt.Sprintf("%v:%v", member.IP, member.Port), req)
+			}
+		}
+
+		log.Infof(ctx, "No compatible silo found for %v", req.GrainType)
 		return &pb.ExecuteGrainResponse{
 			Status: pb.ExecutionStatus_EXECUTION_NO_LONGER_ABLE,
 		}, nil
 	}
-
 }
 
 func (s *Service) PlaceGrain(ctx context.Context, req *pb.PlaceGrainRequest) (*pb.PlaceGrainResponse, error) {

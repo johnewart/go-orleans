@@ -22,11 +22,15 @@ func main() {
 	port := os.Getenv("PORT")
 	metricsPort := os.Getenv("METRICS_PORT")
 	dsn := os.Getenv("DATABASE_URL")
+	redisHostPort := os.Getenv("REDIS_HOST_PORT")
+	grainType := os.Getenv("GRAIN_TYPE")
 
 	log.Infof(ctx, "silo starting up...")
 	log.Infof(ctx, "PORT: %s", port)
 	log.Infof(ctx, "DATABASE_URL: %s", dsn)
 	log.Infof(ctx, "METRICS_PORT: %d", metricsPort)
+	log.Infof(ctx, "REDIS_HOST_PORT: %s", redisHostPort)
+	log.Infof(ctx, "GRAIN_TYPE: %s", grainType)
 
 	if ip, err := util.GetIP(); err != nil {
 		log.Warnf(ctx, "failed to get ip: %v", err)
@@ -36,42 +40,54 @@ func main() {
 		mp, _ := strconv.Atoi(metricsPort)
 		heartbeatInterval := 5 * time.Second
 
-		siloService, svcErr := silo.NewSiloService(ctx, mp, p, ip, heartbeatInterval, dsn)
+		config := silo.ServiceConfig{
+			MetricsPort:      mp,
+			ServicePort:      p,
+			TableStoreDSN:    dsn,
+			RedisHostPort:    redisHostPort,
+			HearbeatInterval: heartbeatInterval,
+			RoutableIP:       ip,
+		}
+		siloService, svcErr := silo.NewSiloService(ctx, config)
 		if svcErr != nil {
 			log.Errorf(ctx, "failed to create silo service: %v", svcErr)
 			os.Exit(-1)
 		}
 
-		if err = siloService.RegisterHandler("HelloWorld", func(ctx context.Context, grain *grain.Grain) (*client.GrainExecution, error) {
-			data := grain.Data
-			message := fmt.Sprintf("Hello %s", string(data))
-			log.Infof(ctx, "HelloWorld: %s", data)
-			return &client.GrainExecution{
-				Status: client.ExecutionSuccess,
-				Result: []byte(message),
-			}, nil
-		}); err != nil {
-			log.Errorf(ctx, "failed to register HelloWorld handler: %v", err)
+		if grainType == "HelloWorld" {
+			if err = siloService.RegisterHandler("HelloWorld", func(ctx context.Context, grain *grain.Grain) (*client.GrainExecution, error) {
+				data := grain.Data
+				message := fmt.Sprintf("Hello %s", string(data))
+				log.Infof(ctx, "HelloWorld: %s", data)
+				return &client.GrainExecution{
+					Status: client.ExecutionSuccess,
+					Result: []byte(message),
+				}, nil
+			}); err != nil {
+				log.Errorf(ctx, "failed to register HelloWorld handler: %v", err)
+			}
 		}
 
-		if err = siloService.RegisterHandler("Sleep", func(ctx context.Context, grain *grain.Grain) (*client.GrainExecution, error) {
-			data := grain.Data
-			sleepTime, _ := strconv.Atoi(string(data))
-			log.Infof(ctx, "Sleep grain will sleep for %d seconds...", sleepTime)
+		if grainType == "Sleep" {
+			if err = siloService.RegisterHandler("Sleep", func(ctx context.Context, grain *grain.Grain) (*client.GrainExecution, error) {
+				data := grain.Data
+				sleepTime, _ := strconv.Atoi(string(data))
+				log.Infof(ctx, "Sleep grain will sleep for %d seconds...", sleepTime)
 
-			time.Sleep(time.Duration(sleepTime) * time.Second)
-			sleepZzs := make([]string, 0)
-			for i := 0; i < sleepTime; i++ {
-				sleepZzs = append(sleepZzs, "z")
+				time.Sleep(time.Duration(sleepTime) * time.Second)
+				sleepZzs := make([]string, 0)
+				for i := 0; i < sleepTime; i++ {
+					sleepZzs = append(sleepZzs, "z")
+				}
+				response := fmt.Sprintf("%d Z%s...", sleepTime, strings.Join(sleepZzs, ""))
+				return &client.GrainExecution{
+					GrainID: grain.ID,
+					Status:  client.ExecutionSuccess,
+					Result:  []byte(response),
+				}, nil
+			}); err != nil {
+				log.Errorf(ctx, "failed to register Sleep handler: %v", err)
 			}
-			response := fmt.Sprintf("%d Z%s...", sleepTime, strings.Join(sleepZzs, ""))
-			return &client.GrainExecution{
-				GrainID: grain.ID,
-				Status:  client.ExecutionSuccess,
-				Result:  []byte(response),
-			}, nil
-		}); err != nil {
-			log.Errorf(ctx, "failed to register Sleep handler: %v", err)
 		}
 
 		go func() {

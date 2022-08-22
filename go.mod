@@ -3,8 +3,8 @@ module github.com/johnewart/go-orleans
 go 1.18
 
 require (
+	github.com/go-redis/redis/v9 v9.0.0-beta.2
 	github.com/lib/pq v1.10.2
-	github.com/uber-go/tally v3.5.0+incompatible
 	github.com/uber-go/tally/v4 v4.1.2
 	google.golang.org/grpc v1.48.0
 	google.golang.org/protobuf v1.28.1
@@ -15,7 +15,8 @@ require (
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/cespare/xxhash/v2 v2.1.1 // indirect
+	github.com/cespare/xxhash/v2 v2.1.2 // indirect
+	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
 	github.com/jackc/pgconn v1.12.1 // indirect
