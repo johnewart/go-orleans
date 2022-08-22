@@ -1,3 +1,3 @@
-node1: PORT=8099 ./silod
-node2: PORT=8098 ./silod
-node3: PORT=8097 ./silod
+node1: METRICS_PORT=9001 PORT=8091 ./silod
+node2: METRICS_PORT=9002 PORT=8092 ./silod
+node3: METRICS_PORT=9003 PORT=8093 ./silod

@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"github.com/johnewart/go-orleans/client"
 	"github.com/johnewart/go-orleans/grain"
 	"os"
 	"strconv"
+	"sync"
 	"zombiezen.com/go/log"
 )
 
@@ -31,4 +33,23 @@ func main() {
 		log.Infof(ctx, "Grain result: %s", res.Result)
 	}
 
+	wg := sync.WaitGroup{}
+	for i := 0; i <= 5; i++ {
+		sleepTime := 20 - i*2
+		sleepGrain := grain.Grain{
+			ID:   fmt.Sprintf("sleep-%d", i),
+			Type: "Sleep",
+			Data: []byte(fmt.Sprintf("%d", sleepTime)),
+		}
+		log.Infof(ctx, "Scheduling grain %d", i)
+		wg.Add(1)
+
+		c.ScheduleGrainAsync(&sleepGrain, func(res *client.GrainExecution) {
+			id := res.GrainID
+			log.Infof(ctx, "Grain %s result: %s", id, res.Result)
+			wg.Done()
+		})
+	}
+
+	wg.Wait()
 }

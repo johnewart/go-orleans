@@ -8,6 +8,46 @@ import "google/protobuf/empty.proto";
 
 service SiloService {
   rpc Ping(google.protobuf.Empty) returns (PingResponse) {}
+  rpc PlaceGrain(PlaceGrainRequest) returns (PlaceGrainResponse) {}
+  rpc ExecuteGrain(ExecuteGrainRequest) returns (ExecuteGrainResponse) {}
+}
+
+message SupportedGrainsResponse {
+  repeated string grainTypes = 1;
+}
+
+enum PlacementStatus {
+  PLACEMENT_OK = 0;
+  PLACEMENT_NO_COMPATIBLE_SILO = 1;
+  PLACEMENT_ERROR = 2;
+}
+
+enum ExecutionStatus {
+  EXECUTION_OK = 0;
+  EXECUTION_ERROR = 1;
+  EXECUTION_NO_LONGER_ABLE = 2; // The grain is no longer able to execute
+}
+
+message ExecuteGrainRequest {
+  string grainType = 1;
+  string grainId = 2;
+  bytes data = 3;
+}
+
+message ExecuteGrainResponse {
+  ExecutionStatus status = 1;
+  string grainId = 2;
+  bytes result = 3;
+}
+
+message PlaceGrainRequest {
+  string grainType = 1;
+  string grainId = 2;
+}
+
+message PlaceGrainResponse {
+  PlacementStatus status = 1;
+  string location = 2;
 }
 
 message PingResponse {

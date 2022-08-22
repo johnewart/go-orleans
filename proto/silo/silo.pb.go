@@ -21,6 +21,387 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type PlacementStatus int32
+
+const (
+	PlacementStatus_PLACEMENT_OK                 PlacementStatus = 0
+	PlacementStatus_PLACEMENT_NO_COMPATIBLE_SILO PlacementStatus = 1
+	PlacementStatus_PLACEMENT_ERROR              PlacementStatus = 2
+)
+
+// Enum value maps for PlacementStatus.
+var (
+	PlacementStatus_name = map[int32]string{
+		0: "PLACEMENT_OK",
+		1: "PLACEMENT_NO_COMPATIBLE_SILO",
+		2: "PLACEMENT_ERROR",
+	}
+	PlacementStatus_value = map[string]int32{
+		"PLACEMENT_OK":                 0,
+		"PLACEMENT_NO_COMPATIBLE_SILO": 1,
+		"PLACEMENT_ERROR":              2,
+	}
+)
+
+func (x PlacementStatus) Enum() *PlacementStatus {
+	p := new(PlacementStatus)
+	*p = x
+	return p
+}
+
+func (x PlacementStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (PlacementStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_silo_silo_proto_enumTypes[0].Descriptor()
+}
+
+func (PlacementStatus) Type() protoreflect.EnumType {
+	return &file_silo_silo_proto_enumTypes[0]
+}
+
+func (x PlacementStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use PlacementStatus.Descriptor instead.
+func (PlacementStatus) EnumDescriptor() ([]byte, []int) {
+	return file_silo_silo_proto_rawDescGZIP(), []int{0}
+}
+
+type ExecutionStatus int32
+
+const (
+	ExecutionStatus_EXECUTION_OK             ExecutionStatus = 0
+	ExecutionStatus_EXECUTION_ERROR          ExecutionStatus = 1
+	ExecutionStatus_EXECUTION_NO_LONGER_ABLE ExecutionStatus = 2 // The grain is no longer able to execute
+)
+
+// Enum value maps for ExecutionStatus.
+var (
+	ExecutionStatus_name = map[int32]string{
+		0: "EXECUTION_OK",
+		1: "EXECUTION_ERROR",
+		2: "EXECUTION_NO_LONGER_ABLE",
+	}
+	ExecutionStatus_value = map[string]int32{
+		"EXECUTION_OK":             0,
+		"EXECUTION_ERROR":          1,
+		"EXECUTION_NO_LONGER_ABLE": 2,
+	}
+)
+
+func (x ExecutionStatus) Enum() *ExecutionStatus {
+	p := new(ExecutionStatus)
+	*p = x
+	return p
+}
+
+func (x ExecutionStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ExecutionStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_silo_silo_proto_enumTypes[1].Descriptor()
+}
+
+func (ExecutionStatus) Type() protoreflect.EnumType {
+	return &file_silo_silo_proto_enumTypes[1]
+}
+
+func (x ExecutionStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ExecutionStatus.Descriptor instead.
+func (ExecutionStatus) EnumDescriptor() ([]byte, []int) {
+	return file_silo_silo_proto_rawDescGZIP(), []int{1}
+}
+
+type SupportedGrainsResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	GrainTypes []string `protobuf:"bytes,1,rep,name=grainTypes,proto3" json:"grainTypes,omitempty"`
+}
+
+func (x *SupportedGrainsResponse) Reset() {
+	*x = SupportedGrainsResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_silo_silo_proto_msgTypes[0]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *SupportedGrainsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SupportedGrainsResponse) ProtoMessage() {}
+
+func (x *SupportedGrainsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_silo_silo_proto_msgTypes[0]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SupportedGrainsResponse.ProtoReflect.Descriptor instead.
+func (*SupportedGrainsResponse) Descriptor() ([]byte, []int) {
+	return file_silo_silo_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *SupportedGrainsResponse) GetGrainTypes() []string {
+	if x != nil {
+		return x.GrainTypes
+	}
+	return nil
+}
+
+type ExecuteGrainRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	GrainType string `protobuf:"bytes,1,opt,name=grainType,proto3" json:"grainType,omitempty"`
+	GrainId   string `protobuf:"bytes,2,opt,name=grainId,proto3" json:"grainId,omitempty"`
+	Data      []byte `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"`
+}
+
+func (x *ExecuteGrainRequest) Reset() {
+	*x = ExecuteGrainRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_silo_silo_proto_msgTypes[1]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ExecuteGrainRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExecuteGrainRequest) ProtoMessage() {}
+
+func (x *ExecuteGrainRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_silo_silo_proto_msgTypes[1]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExecuteGrainRequest.ProtoReflect.Descriptor instead.
+func (*ExecuteGrainRequest) Descriptor() ([]byte, []int) {
+	return file_silo_silo_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *ExecuteGrainRequest) GetGrainType() string {
+	if x != nil {
+		return x.GrainType
+	}
+	return ""
+}
+
+func (x *ExecuteGrainRequest) GetGrainId() string {
+	if x != nil {
+		return x.GrainId
+	}
+	return ""
+}
+
+func (x *ExecuteGrainRequest) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+type ExecuteGrainResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Status  ExecutionStatus `protobuf:"varint,1,opt,name=status,proto3,enum=silo.ExecutionStatus" json:"status,omitempty"`
+	GrainId string          `protobuf:"bytes,2,opt,name=grainId,proto3" json:"grainId,omitempty"`
+	Result  []byte          `protobuf:"bytes,3,opt,name=result,proto3" json:"result,omitempty"`
+}
+
+func (x *ExecuteGrainResponse) Reset() {
+	*x = ExecuteGrainResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_silo_silo_proto_msgTypes[2]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ExecuteGrainResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExecuteGrainResponse) ProtoMessage() {}
+
+func (x *ExecuteGrainResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_silo_silo_proto_msgTypes[2]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExecuteGrainResponse.ProtoReflect.Descriptor instead.
+func (*ExecuteGrainResponse) Descriptor() ([]byte, []int) {
+	return file_silo_silo_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ExecuteGrainResponse) GetStatus() ExecutionStatus {
+	if x != nil {
+		return x.Status
+	}
+	return ExecutionStatus_EXECUTION_OK
+}
+
+func (x *ExecuteGrainResponse) GetGrainId() string {
+	if x != nil {
+		return x.GrainId
+	}
+	return ""
+}
+
+func (x *ExecuteGrainResponse) GetResult() []byte {
+	if x != nil {
+		return x.Result
+	}
+	return nil
+}
+
+type PlaceGrainRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	GrainType string `protobuf:"bytes,1,opt,name=grainType,proto3" json:"grainType,omitempty"`
+	GrainId   string `protobuf:"bytes,2,opt,name=grainId,proto3" json:"grainId,omitempty"`
+}
+
+func (x *PlaceGrainRequest) Reset() {
+	*x = PlaceGrainRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_silo_silo_proto_msgTypes[3]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *PlaceGrainRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PlaceGrainRequest) ProtoMessage() {}
+
+func (x *PlaceGrainRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_silo_silo_proto_msgTypes[3]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PlaceGrainRequest.ProtoReflect.Descriptor instead.
+func (*PlaceGrainRequest) Descriptor() ([]byte, []int) {
+	return file_silo_silo_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *PlaceGrainRequest) GetGrainType() string {
+	if x != nil {
+		return x.GrainType
+	}
+	return ""
+}
+
+func (x *PlaceGrainRequest) GetGrainId() string {
+	if x != nil {
+		return x.GrainId
+	}
+	return ""
+}
+
+type PlaceGrainResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Status   PlacementStatus `protobuf:"varint,1,opt,name=status,proto3,enum=silo.PlacementStatus" json:"status,omitempty"`
+	Location string          `protobuf:"bytes,2,opt,name=location,proto3" json:"location,omitempty"`
+}
+
+func (x *PlaceGrainResponse) Reset() {
+	*x = PlaceGrainResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_silo_silo_proto_msgTypes[4]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *PlaceGrainResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PlaceGrainResponse) ProtoMessage() {}
+
+func (x *PlaceGrainResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_silo_silo_proto_msgTypes[4]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PlaceGrainResponse.ProtoReflect.Descriptor instead.
+func (*PlaceGrainResponse) Descriptor() ([]byte, []int) {
+	return file_silo_silo_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *PlaceGrainResponse) GetStatus() PlacementStatus {
+	if x != nil {
+		return x.Status
+	}
+	return PlacementStatus_PLACEMENT_OK
+}
+
+func (x *PlaceGrainResponse) GetLocation() string {
+	if x != nil {
+		return x.Location
+	}
+	return ""
+}
+
 type PingResponse struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -32,7 +413,7 @@ type PingResponse struct {
 func (x *PingResponse) Reset() {
 	*x = PingResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_silo_silo_proto_msgTypes[0]
+		mi := &file_silo_silo_proto_msgTypes[5]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -45,7 +426,7 @@ func (x *PingResponse) String() string {
 func (*PingResponse) ProtoMessage() {}
 
 func (x *PingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_silo_silo_proto_msgTypes[0]
+	mi := &file_silo_silo_proto_msgTypes[5]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -58,7 +439,7 @@ func (x *PingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PingResponse.ProtoReflect.Descriptor instead.
 func (*PingResponse) Descriptor() ([]byte, []int) {
-	return file_silo_silo_proto_rawDescGZIP(), []int{0}
+	return file_silo_silo_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *PingResponse) GetEpoch() int64 {
@@ -74,16 +455,65 @@ var file_silo_silo_proto_rawDesc = []byte{
 	0x0a, 0x0f, 0x73, 0x69, 0x6c, 0x6f, 0x2f, 0x73, 0x69, 0x6c, 0x6f, 0x2e, 0x70, 0x72, 0x6f, 0x74,
 	0x6f, 0x12, 0x04, 0x73, 0x69, 0x6c, 0x6f, 0x1a, 0x1b, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2f,
 	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2f, 0x65, 0x6d, 0x70, 0x74, 0x79, 0x2e, 0x70,
-	0x72, 0x6f, 0x74, 0x6f, 0x22, 0x24, 0x0a, 0x0c, 0x50, 0x69, 0x6e, 0x67, 0x52, 0x65, 0x73, 0x70,
-	0x6f, 0x6e, 0x73, 0x65, 0x12, 0x14, 0x0a, 0x05, 0x65, 0x70, 0x6f, 0x63, 0x68, 0x18, 0x01, 0x20,
-	0x01, 0x28, 0x03, 0x52, 0x05, 0x65, 0x70, 0x6f, 0x63, 0x68, 0x32, 0x43, 0x0a, 0x0b, 0x53, 0x69,
-	0x6c, 0x6f, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x34, 0x0a, 0x04, 0x50, 0x69, 0x6e,
-	0x67, 0x12, 0x16, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f,
-	0x62, 0x75, 0x66, 0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79, 0x1a, 0x12, 0x2e, 0x73, 0x69, 0x6c, 0x6f,
-	0x2e, 0x50, 0x69, 0x6e, 0x67, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x00, 0x42,
-	0x1c, 0x5a, 0x1a, 0x64, 0x61, 0x70, 0x72, 0x2e, 0x69, 0x6f, 0x2f, 0x6f, 0x72, 0x6c, 0x65, 0x61,
-	0x6e, 0x73, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x73, 0x69, 0x6c, 0x6f, 0x62, 0x06, 0x70,
-	0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x72, 0x6f, 0x74, 0x6f, 0x22, 0x39, 0x0a, 0x17, 0x53, 0x75, 0x70, 0x70, 0x6f, 0x72, 0x74, 0x65,
+	0x64, 0x47, 0x72, 0x61, 0x69, 0x6e, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12,
+	0x1e, 0x0a, 0x0a, 0x67, 0x72, 0x61, 0x69, 0x6e, 0x54, 0x79, 0x70, 0x65, 0x73, 0x18, 0x01, 0x20,
+	0x03, 0x28, 0x09, 0x52, 0x0a, 0x67, 0x72, 0x61, 0x69, 0x6e, 0x54, 0x79, 0x70, 0x65, 0x73, 0x22,
+	0x61, 0x0a, 0x13, 0x45, 0x78, 0x65, 0x63, 0x75, 0x74, 0x65, 0x47, 0x72, 0x61, 0x69, 0x6e, 0x52,
+	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x1c, 0x0a, 0x09, 0x67, 0x72, 0x61, 0x69, 0x6e, 0x54,
+	0x79, 0x70, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x67, 0x72, 0x61, 0x69, 0x6e,
+	0x54, 0x79, 0x70, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x67, 0x72, 0x61, 0x69, 0x6e, 0x49, 0x64, 0x18,
+	0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x67, 0x72, 0x61, 0x69, 0x6e, 0x49, 0x64, 0x12, 0x12,
+	0x0a, 0x04, 0x64, 0x61, 0x74, 0x61, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x04, 0x64, 0x61,
+	0x74, 0x61, 0x22, 0x77, 0x0a, 0x14, 0x45, 0x78, 0x65, 0x63, 0x75, 0x74, 0x65, 0x47, 0x72, 0x61,
+	0x69, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x2d, 0x0a, 0x06, 0x73, 0x74,
+	0x61, 0x74, 0x75, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x15, 0x2e, 0x73, 0x69, 0x6c,
+	0x6f, 0x2e, 0x45, 0x78, 0x65, 0x63, 0x75, 0x74, 0x69, 0x6f, 0x6e, 0x53, 0x74, 0x61, 0x74, 0x75,
+	0x73, 0x52, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x18, 0x0a, 0x07, 0x67, 0x72, 0x61,
+	0x69, 0x6e, 0x49, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x67, 0x72, 0x61, 0x69,
+	0x6e, 0x49, 0x64, 0x12, 0x16, 0x0a, 0x06, 0x72, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x18, 0x03, 0x20,
+	0x01, 0x28, 0x0c, 0x52, 0x06, 0x72, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x22, 0x4b, 0x0a, 0x11, 0x50,
+	0x6c, 0x61, 0x63, 0x65, 0x47, 0x72, 0x61, 0x69, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x12, 0x1c, 0x0a, 0x09, 0x67, 0x72, 0x61, 0x69, 0x6e, 0x54, 0x79, 0x70, 0x65, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x09, 0x67, 0x72, 0x61, 0x69, 0x6e, 0x54, 0x79, 0x70, 0x65, 0x12, 0x18,
+	0x0a, 0x07, 0x67, 0x72, 0x61, 0x69, 0x6e, 0x49, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x07, 0x67, 0x72, 0x61, 0x69, 0x6e, 0x49, 0x64, 0x22, 0x5f, 0x0a, 0x12, 0x50, 0x6c, 0x61, 0x63,
+	0x65, 0x47, 0x72, 0x61, 0x69, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x2d,
+	0x0a, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x15,
+	0x2e, 0x73, 0x69, 0x6c, 0x6f, 0x2e, 0x50, 0x6c, 0x61, 0x63, 0x65, 0x6d, 0x65, 0x6e, 0x74, 0x53,
+	0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x1a, 0x0a,
+	0x08, 0x6c, 0x6f, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x08, 0x6c, 0x6f, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x22, 0x24, 0x0a, 0x0c, 0x50, 0x69, 0x6e,
+	0x67, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x14, 0x0a, 0x05, 0x65, 0x70, 0x6f,
+	0x63, 0x68, 0x18, 0x01, 0x20, 0x01, 0x28, 0x03, 0x52, 0x05, 0x65, 0x70, 0x6f, 0x63, 0x68, 0x2a,
+	0x5a, 0x0a, 0x0f, 0x50, 0x6c, 0x61, 0x63, 0x65, 0x6d, 0x65, 0x6e, 0x74, 0x53, 0x74, 0x61, 0x74,
+	0x75, 0x73, 0x12, 0x10, 0x0a, 0x0c, 0x50, 0x4c, 0x41, 0x43, 0x45, 0x4d, 0x45, 0x4e, 0x54, 0x5f,
+	0x4f, 0x4b, 0x10, 0x00, 0x12, 0x20, 0x0a, 0x1c, 0x50, 0x4c, 0x41, 0x43, 0x45, 0x4d, 0x45, 0x4e,
+	0x54, 0x5f, 0x4e, 0x4f, 0x5f, 0x43, 0x4f, 0x4d, 0x50, 0x41, 0x54, 0x49, 0x42, 0x4c, 0x45, 0x5f,
+	0x53, 0x49, 0x4c, 0x4f, 0x10, 0x01, 0x12, 0x13, 0x0a, 0x0f, 0x50, 0x4c, 0x41, 0x43, 0x45, 0x4d,
+	0x45, 0x4e, 0x54, 0x5f, 0x45, 0x52, 0x52, 0x4f, 0x52, 0x10, 0x02, 0x2a, 0x56, 0x0a, 0x0f, 0x45,
+	0x78, 0x65, 0x63, 0x75, 0x74, 0x69, 0x6f, 0x6e, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x10,
+	0x0a, 0x0c, 0x45, 0x58, 0x45, 0x43, 0x55, 0x54, 0x49, 0x4f, 0x4e, 0x5f, 0x4f, 0x4b, 0x10, 0x00,
+	0x12, 0x13, 0x0a, 0x0f, 0x45, 0x58, 0x45, 0x43, 0x55, 0x54, 0x49, 0x4f, 0x4e, 0x5f, 0x45, 0x52,
+	0x52, 0x4f, 0x52, 0x10, 0x01, 0x12, 0x1c, 0x0a, 0x18, 0x45, 0x58, 0x45, 0x43, 0x55, 0x54, 0x49,
+	0x4f, 0x4e, 0x5f, 0x4e, 0x4f, 0x5f, 0x4c, 0x4f, 0x4e, 0x47, 0x45, 0x52, 0x5f, 0x41, 0x42, 0x4c,
+	0x45, 0x10, 0x02, 0x32, 0xcf, 0x01, 0x0a, 0x0b, 0x53, 0x69, 0x6c, 0x6f, 0x53, 0x65, 0x72, 0x76,
+	0x69, 0x63, 0x65, 0x12, 0x34, 0x0a, 0x04, 0x50, 0x69, 0x6e, 0x67, 0x12, 0x16, 0x2e, 0x67, 0x6f,
+	0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x45, 0x6d,
+	0x70, 0x74, 0x79, 0x1a, 0x12, 0x2e, 0x73, 0x69, 0x6c, 0x6f, 0x2e, 0x50, 0x69, 0x6e, 0x67, 0x52,
+	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x00, 0x12, 0x41, 0x0a, 0x0a, 0x50, 0x6c, 0x61,
+	0x63, 0x65, 0x47, 0x72, 0x61, 0x69, 0x6e, 0x12, 0x17, 0x2e, 0x73, 0x69, 0x6c, 0x6f, 0x2e, 0x50,
+	0x6c, 0x61, 0x63, 0x65, 0x47, 0x72, 0x61, 0x69, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x1a, 0x18, 0x2e, 0x73, 0x69, 0x6c, 0x6f, 0x2e, 0x50, 0x6c, 0x61, 0x63, 0x65, 0x47, 0x72, 0x61,
+	0x69, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x00, 0x12, 0x47, 0x0a, 0x0c,
+	0x45, 0x78, 0x65, 0x63, 0x75, 0x74, 0x65, 0x47, 0x72, 0x61, 0x69, 0x6e, 0x12, 0x19, 0x2e, 0x73,
+	0x69, 0x6c, 0x6f, 0x2e, 0x45, 0x78, 0x65, 0x63, 0x75, 0x74, 0x65, 0x47, 0x72, 0x61, 0x69, 0x6e,
+	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1a, 0x2e, 0x73, 0x69, 0x6c, 0x6f, 0x2e, 0x45,
+	0x78, 0x65, 0x63, 0x75, 0x74, 0x65, 0x47, 0x72, 0x61, 0x69, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f,
+	0x6e, 0x73, 0x65, 0x22, 0x00, 0x42, 0x2c, 0x5a, 0x2a, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e,
+	0x63, 0x6f, 0x6d, 0x2f, 0x6a, 0x6f, 0x68, 0x6e, 0x65, 0x77, 0x61, 0x72, 0x74, 0x2f, 0x67, 0x6f,
+	0x2d, 0x6f, 0x72, 0x6c, 0x65, 0x61, 0x6e, 0x73, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x73,
+	0x69, 0x6c, 0x6f, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -98,19 +528,33 @@ func file_silo_silo_proto_rawDescGZIP() []byte {
 	return file_silo_silo_proto_rawDescData
 }
 
-var file_silo_silo_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_silo_silo_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_silo_silo_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_silo_silo_proto_goTypes = []interface{}{
-	(*PingResponse)(nil),  // 0: silo.PingResponse
-	(*emptypb.Empty)(nil), // 1: google.protobuf.Empty
+	(PlacementStatus)(0),            // 0: silo.PlacementStatus
+	(ExecutionStatus)(0),            // 1: silo.ExecutionStatus
+	(*SupportedGrainsResponse)(nil), // 2: silo.SupportedGrainsResponse
+	(*ExecuteGrainRequest)(nil),     // 3: silo.ExecuteGrainRequest
+	(*ExecuteGrainResponse)(nil),    // 4: silo.ExecuteGrainResponse
+	(*PlaceGrainRequest)(nil),       // 5: silo.PlaceGrainRequest
+	(*PlaceGrainResponse)(nil),      // 6: silo.PlaceGrainResponse
+	(*PingResponse)(nil),            // 7: silo.PingResponse
+	(*emptypb.Empty)(nil),           // 8: google.protobuf.Empty
 }
 var file_silo_silo_proto_depIdxs = []int32{
-	1, // 0: silo.SiloService.Ping:input_type -> google.protobuf.Empty
-	0, // 1: silo.SiloService.Ping:output_type -> silo.PingResponse
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	1, // 0: silo.ExecuteGrainResponse.status:type_name -> silo.ExecutionStatus
+	0, // 1: silo.PlaceGrainResponse.status:type_name -> silo.PlacementStatus
+	8, // 2: silo.SiloService.Ping:input_type -> google.protobuf.Empty
+	5, // 3: silo.SiloService.PlaceGrain:input_type -> silo.PlaceGrainRequest
+	3, // 4: silo.SiloService.ExecuteGrain:input_type -> silo.ExecuteGrainRequest
+	7, // 5: silo.SiloService.Ping:output_type -> silo.PingResponse
+	6, // 6: silo.SiloService.PlaceGrain:output_type -> silo.PlaceGrainResponse
+	4, // 7: silo.SiloService.ExecuteGrain:output_type -> silo.ExecuteGrainResponse
+	5, // [5:8] is the sub-list for method output_type
+	2, // [2:5] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_silo_silo_proto_init() }
@@ -120,6 +564,66 @@ func file_silo_silo_proto_init() {
 	}
 	if !protoimpl.UnsafeEnabled {
 		file_silo_silo_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SupportedGrainsResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_silo_silo_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ExecuteGrainRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_silo_silo_proto_msgTypes[2].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ExecuteGrainResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_silo_silo_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*PlaceGrainRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_silo_silo_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*PlaceGrainResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_silo_silo_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*PingResponse); i {
 			case 0:
 				return &v.state
@@ -137,13 +641,14 @@ func file_silo_silo_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_silo_silo_proto_rawDesc,
-			NumEnums:      0,
-			NumMessages:   1,
+			NumEnums:      2,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_silo_silo_proto_goTypes,
 		DependencyIndexes: file_silo_silo_proto_depIdxs,
+		EnumInfos:         file_silo_silo_proto_enumTypes,
 		MessageInfos:      file_silo_silo_proto_msgTypes,
 	}.Build()
 	File_silo_silo_proto = out.File

@@ -78,8 +78,9 @@ func (s *Service) ExecuteGrain(ctx context.Context, req *pb.ExecuteGrainRequest)
 			}, nil
 		} else {
 			return &pb.ExecuteGrainResponse{
-				Status: pb.ExecutionStatus_EXECUTION_OK,
-				Result: r.Result,
+				GrainId: r.GrainID,
+				Status:  pb.ExecutionStatus_EXECUTION_OK,
+				Result:  r.Result,
 			}, nil
 		}
 	} else {
@@ -93,7 +94,7 @@ func (s *Service) ExecuteGrain(ctx context.Context, req *pb.ExecuteGrainRequest)
 
 func (s *Service) PlaceGrain(ctx context.Context, req *pb.PlaceGrainRequest) (*pb.PlaceGrainResponse, error) {
 	g := grain.Grain{
-		ID:   -1,
+		ID:   req.GrainId,
 		Type: req.GrainType,
 		Data: []byte{},
 	}

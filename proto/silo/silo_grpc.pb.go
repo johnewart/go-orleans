@@ -20,6 +20,8 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type SiloServiceClient interface {
 	Ping(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*PingResponse, error)
+	PlaceGrain(ctx context.Context, in *PlaceGrainRequest, opts ...grpc.CallOption) (*PlaceGrainResponse, error)
+	ExecuteGrain(ctx context.Context, in *ExecuteGrainRequest, opts ...grpc.CallOption) (*ExecuteGrainResponse, error)
 }
 
 type siloServiceClient struct {
@@ -39,11 +41,31 @@ func (c *siloServiceClient) Ping(ctx context.Context, in *emptypb.Empty, opts ..
 	return out, nil
 }
 
+func (c *siloServiceClient) PlaceGrain(ctx context.Context, in *PlaceGrainRequest, opts ...grpc.CallOption) (*PlaceGrainResponse, error) {
+	out := new(PlaceGrainResponse)
+	err := c.cc.Invoke(ctx, "/silo.SiloService/PlaceGrain", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *siloServiceClient) ExecuteGrain(ctx context.Context, in *ExecuteGrainRequest, opts ...grpc.CallOption) (*ExecuteGrainResponse, error) {
+	out := new(ExecuteGrainResponse)
+	err := c.cc.Invoke(ctx, "/silo.SiloService/ExecuteGrain", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SiloServiceServer is the server API for SiloService service.
 // All implementations must embed UnimplementedSiloServiceServer
 // for forward compatibility
 type SiloServiceServer interface {
 	Ping(context.Context, *emptypb.Empty) (*PingResponse, error)
+	PlaceGrain(context.Context, *PlaceGrainRequest) (*PlaceGrainResponse, error)
+	ExecuteGrain(context.Context, *ExecuteGrainRequest) (*ExecuteGrainResponse, error)
 	mustEmbedUnimplementedSiloServiceServer()
 }
 
@@ -53,6 +75,12 @@ type UnimplementedSiloServiceServer struct {
 
 func (UnimplementedSiloServiceServer) Ping(context.Context, *emptypb.Empty) (*PingResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Ping not implemented")
+}
+func (UnimplementedSiloServiceServer) PlaceGrain(context.Context, *PlaceGrainRequest) (*PlaceGrainResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PlaceGrain not implemented")
+}
+func (UnimplementedSiloServiceServer) ExecuteGrain(context.Context, *ExecuteGrainRequest) (*ExecuteGrainResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ExecuteGrain not implemented")
 }
 func (UnimplementedSiloServiceServer) mustEmbedUnimplementedSiloServiceServer() {}
 
@@ -85,6 +113,42 @@ func _SiloService_Ping_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SiloService_PlaceGrain_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PlaceGrainRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SiloServiceServer).PlaceGrain(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/silo.SiloService/PlaceGrain",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SiloServiceServer).PlaceGrain(ctx, req.(*PlaceGrainRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SiloService_ExecuteGrain_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExecuteGrainRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SiloServiceServer).ExecuteGrain(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/silo.SiloService/ExecuteGrain",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SiloServiceServer).ExecuteGrain(ctx, req.(*ExecuteGrainRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SiloService_ServiceDesc is the grpc.ServiceDesc for SiloService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -95,6 +159,14 @@ var SiloService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Ping",
 			Handler:    _SiloService_Ping_Handler,
+		},
+		{
+			MethodName: "PlaceGrain",
+			Handler:    _SiloService_PlaceGrain_Handler,
+		},
+		{
+			MethodName: "ExecuteGrain",
+			Handler:    _SiloService_ExecuteGrain_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

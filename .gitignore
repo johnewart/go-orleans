@@ -2,3 +2,4 @@ cmd/silod/silod
 .idea/
 .env
 *.iml
+/cmd/client/client

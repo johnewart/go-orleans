@@ -30,16 +30,11 @@ const (
 )
 
 type GrainExecution struct {
-	Status ExecutionStatus
-	Result []byte
-	Error  error
-}
-
-type GrainScheduleResult struct {
-	Status      ScheduleStatus
-	GrainID     string
-	SiloAddress string
-	SiloPort    int
+	GrainID   string
+	Status    ExecutionStatus
+	Result    []byte
+	Error     error
+	GrainType string
 }
 
 func NewClient(ctx context.Context, clusterHost string, clusterPort int) *Client {
@@ -64,35 +59,58 @@ func (c *Client) WithClient(f func(context.Context, pb.SiloServiceClient) GrainE
 	}
 }
 
-func (c *Client) ScheduleGrain(grain *grain.Grain, callback func(*GrainExecution)) GrainScheduleResult {
+func (c *Client) ScheduleGrain(grain *grain.Grain) GrainExecution {
 	return c.WithClient(func(ctx context.Context, client pb.SiloServiceClient) GrainExecution {
 		req := &pb.ExecuteGrainRequest{
+			GrainId:   grain.ID,
 			GrainType: grain.Type,
 			Data:      grain.Data,
 		}
 		if result, err := client.ExecuteGrain(ctx, req); err != nil {
 			return GrainExecution{
-				Status: ExecutionError,
-				Error:  fmt.Errorf("unable to schedule grain: %v", err),
+				GrainID:   grain.ID,
+				GrainType: grain.Type,
+				Status:    ExecutionError,
+				Error:     fmt.Errorf("unable to schedule grain: %v", err),
 			}
 		} else {
 			if result.Status == pb.ExecutionStatus_EXECUTION_NO_LONGER_ABLE {
 				return GrainExecution{
-					Status: ExecutionNoLongerAbleToRun,
-					Error:  fmt.Errorf("unable to schedule grain, silo is no longer able to run it"),
+					GrainID:   grain.ID,
+					GrainType: grain.Type,
+					Status:    ExecutionNoLongerAbleToRun,
+					Error:     fmt.Errorf("unable to schedule grain, silo is no longer able to run it"),
 				}
 			}
 			if result.Status == pb.ExecutionStatus_EXECUTION_OK {
 				return GrainExecution{
-					Status: ExecutionSuccess,
-					Result: result.Result,
+					GrainID:   grain.ID,
+					GrainType: grain.Type,
+					Status:    ExecutionSuccess,
+					Result:    result.Result,
 				}
 			} else {
 				return GrainExecution{
-					Status: ExecutionError,
-					Error:  fmt.Errorf("unable to schedule grain: %s", result.Result),
+					GrainID:   grain.ID,
+					GrainType: grain.Type,
+					Status:    ExecutionError,
+					Error:     fmt.Errorf("unable to schedule grain: %s", result.Result),
 				}
 			}
 		}
 	})
+}
+
+func (c *Client) ScheduleGrainAsync(grain *grain.Grain, callback func(*GrainExecution)) context.Context {
+	asyncContext := context.Background()
+
+	go func(ctx context.Context) {
+		// TODO: handle cancellation
+		log.Infof(ctx, "Scheduling grain asynchronously")
+		result := c.ScheduleGrain(grain)
+		log.Infof(ctx, "Grain result: %s", result.Result)
+		callback(&result)
+	}(asyncContext)
+
+	return asyncContext
 }
