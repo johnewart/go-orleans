@@ -1,0 +1,15 @@
+
+syntax = "proto3";
+
+option go_package = "github.com/johnewart/go-orleans/proto/silo";
+
+package silo;
+import "google/protobuf/empty.proto";
+
+service SiloService {
+  rpc Ping(google.protobuf.Empty) returns (PingResponse) {}
+}
+
+message PingResponse {
+  int64 epoch = 1;
+}

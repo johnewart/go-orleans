@@ -1,0 +1,4 @@
+cmd/silod/silod
+.idea/
+.env
+*.iml

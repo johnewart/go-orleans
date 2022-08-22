@@ -1,0 +1,3 @@
+node1: PORT=8099 ./silod
+node2: PORT=8098 ./silod
+node3: PORT=8097 ./silod
