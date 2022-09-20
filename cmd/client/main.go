@@ -4,9 +4,11 @@ import (
 	"context"
 	"github.com/johnewart/go-orleans/client"
 	"github.com/johnewart/go-orleans/grain"
+	"github.com/johnewart/go-orleans/reminders"
 	"os"
 	"strconv"
 	"sync"
+	"time"
 	"zombiezen.com/go/log"
 )
 
@@ -43,6 +45,16 @@ func main() {
 		log.Warnf(ctx, "Unable to schedule grain: %v", res.Error)
 	} else {
 		log.Infof(ctx, "Grain result: %s", res.Result)
+	}
+
+	if err := c.ScheduleReminder(&reminders.Reminder{
+		GrainType: "HelloWorld",
+		GrainId:   "Samus Aran",
+		Period:    10 * time.Second,
+		DueTime:   time.Now(),
+		Data:      []byte("Samus Aran"),
+	}); err != nil {
+		log.Warnf(ctx, "Unable to schedule reminder: %v", err)
 	}
 
 	metadata := client.GrainMetadata{"Ohai", "1.0"}

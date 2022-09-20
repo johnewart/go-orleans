@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/johnewart/go-orleans/grain"
 	pb "github.com/johnewart/go-orleans/proto/silo"
+	"github.com/johnewart/go-orleans/reminders"
 	"google.golang.org/grpc"
 	"time"
 	"zombiezen.com/go/log"
@@ -21,7 +22,6 @@ type Invocation struct {
 
 type GrainHandler interface {
 	Handle(*Invocation) (GrainExecution, error)
-	//Run(chan *Invocation) error
 }
 
 type GrainMetadata struct {
@@ -210,4 +210,21 @@ func (c *Client) ScheduleGrainAsync(grain *grain.Grain, callback func(*GrainExec
 	}(asyncContext)
 
 	return asyncContext
+}
+
+func (c *Client) ScheduleReminder(reminder *reminders.Reminder) error {
+	req := &pb.RegisterReminderRequest{
+		GrainId:      reminder.GrainId,
+		GrainType:    reminder.GrainType,
+		ReminderName: reminder.ReminderName,
+		Period:       int64(reminder.Period.Seconds()),
+		DueTime:      reminder.DueTime.UnixMilli(),
+		Data:         reminder.Data,
+	}
+
+	if _, err := c.pbClient.RegisterReminder(c.ctx, req); err != nil {
+		return fmt.Errorf("unable to schedule reminder: %v", err)
+	} else {
+		return nil
+	}
 }

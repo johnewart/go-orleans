@@ -12,6 +12,21 @@ service SiloService {
   rpc ExecuteGrain(ExecuteGrainRequest) returns (ExecuteGrainResponse) {}
   rpc RegisterGrainHandler(RegisterGrainHandlerRequest) returns (stream GrainExecutionRequest) {}
   rpc ResultStream(stream GrainExecutionResult) returns (google.protobuf.Empty) {}
+  rpc RegisterReminder(RegisterReminderRequest) returns (RegisterReminderResponse) {}
+}
+
+
+message RegisterReminderResponse {
+  string reminderId = 1;
+}
+
+message RegisterReminderRequest {
+  string grainType = 1;
+  string grainId = 2;
+  string reminderName = 3;
+  int64 dueTime = 4;
+  int64 period = 5;
+  bytes data = 6;
 }
 
 message GrainExecutionResult {

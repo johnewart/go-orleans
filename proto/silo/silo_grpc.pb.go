@@ -24,6 +24,7 @@ type SiloServiceClient interface {
 	ExecuteGrain(ctx context.Context, in *ExecuteGrainRequest, opts ...grpc.CallOption) (*ExecuteGrainResponse, error)
 	RegisterGrainHandler(ctx context.Context, in *RegisterGrainHandlerRequest, opts ...grpc.CallOption) (SiloService_RegisterGrainHandlerClient, error)
 	ResultStream(ctx context.Context, opts ...grpc.CallOption) (SiloService_ResultStreamClient, error)
+	RegisterReminder(ctx context.Context, in *RegisterReminderRequest, opts ...grpc.CallOption) (*RegisterReminderResponse, error)
 }
 
 type siloServiceClient struct {
@@ -127,6 +128,15 @@ func (x *siloServiceResultStreamClient) CloseAndRecv() (*emptypb.Empty, error) {
 	return m, nil
 }
 
+func (c *siloServiceClient) RegisterReminder(ctx context.Context, in *RegisterReminderRequest, opts ...grpc.CallOption) (*RegisterReminderResponse, error) {
+	out := new(RegisterReminderResponse)
+	err := c.cc.Invoke(ctx, "/silo.SiloService/RegisterReminder", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SiloServiceServer is the server API for SiloService service.
 // All implementations must embed UnimplementedSiloServiceServer
 // for forward compatibility
@@ -136,6 +146,7 @@ type SiloServiceServer interface {
 	ExecuteGrain(context.Context, *ExecuteGrainRequest) (*ExecuteGrainResponse, error)
 	RegisterGrainHandler(*RegisterGrainHandlerRequest, SiloService_RegisterGrainHandlerServer) error
 	ResultStream(SiloService_ResultStreamServer) error
+	RegisterReminder(context.Context, *RegisterReminderRequest) (*RegisterReminderResponse, error)
 	mustEmbedUnimplementedSiloServiceServer()
 }
 
@@ -157,6 +168,9 @@ func (UnimplementedSiloServiceServer) RegisterGrainHandler(*RegisterGrainHandler
 }
 func (UnimplementedSiloServiceServer) ResultStream(SiloService_ResultStreamServer) error {
 	return status.Errorf(codes.Unimplemented, "method ResultStream not implemented")
+}
+func (UnimplementedSiloServiceServer) RegisterReminder(context.Context, *RegisterReminderRequest) (*RegisterReminderResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RegisterReminder not implemented")
 }
 func (UnimplementedSiloServiceServer) mustEmbedUnimplementedSiloServiceServer() {}
 
@@ -272,6 +286,24 @@ func (x *siloServiceResultStreamServer) Recv() (*GrainExecutionResult, error) {
 	return m, nil
 }
 
+func _SiloService_RegisterReminder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RegisterReminderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SiloServiceServer).RegisterReminder(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/silo.SiloService/RegisterReminder",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SiloServiceServer).RegisterReminder(ctx, req.(*RegisterReminderRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SiloService_ServiceDesc is the grpc.ServiceDesc for SiloService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -290,6 +322,10 @@ var SiloService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ExecuteGrain",
 			Handler:    _SiloService_ExecuteGrain_Handler,
+		},
+		{
+			MethodName: "RegisterReminder",
+			Handler:    _SiloService_RegisterReminder_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
