@@ -10,10 +10,34 @@ service SiloService {
   rpc Ping(google.protobuf.Empty) returns (PingResponse) {}
   rpc PlaceGrain(PlaceGrainRequest) returns (PlaceGrainResponse) {}
   rpc ExecuteGrain(ExecuteGrainRequest) returns (ExecuteGrainResponse) {}
+  rpc RegisterGrainHandler(RegisterGrainHandlerRequest) returns (stream GrainExecutionRequest) {}
+  rpc ResultStream(stream GrainExecutionResult) returns (google.protobuf.Empty) {}
+}
+
+message GrainExecutionResult {
+  string RequestId = 1;
+  ExecutionStatus Status = 2;
+  oneof test_result {
+    bytes Result = 3;
+    string Error = 4;
+  }
+}
+
+message GrainExecutionRequest {
+  string RequestId = 1;
+  string GrainType = 2;
+  string GrainId = 3;
+  string MethodName = 4;
+  bytes Data = 5;
 }
 
 message SupportedGrainsResponse {
   repeated string grainTypes = 1;
+}
+
+enum RegistrationStatus {
+  REGISTRATION_OK = 0;
+  REGISTRATION_ERROR = 1; 
 }
 
 enum PlacementStatus {
@@ -26,6 +50,15 @@ enum ExecutionStatus {
   EXECUTION_OK = 0;
   EXECUTION_ERROR = 1;
   EXECUTION_NO_LONGER_ABLE = 2; // The grain is no longer able to execute
+}
+
+message RegisterGrainHandlerRequest {
+  string grainType = 1; 
+  string grainVersion = 2; 
+}  
+
+message RegisterGrainHandlerResponse {
+  RegistrationStatus status = 1; 
 }
 
 message ExecuteGrainRequest {

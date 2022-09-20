@@ -22,6 +22,8 @@ type SiloServiceClient interface {
 	Ping(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*PingResponse, error)
 	PlaceGrain(ctx context.Context, in *PlaceGrainRequest, opts ...grpc.CallOption) (*PlaceGrainResponse, error)
 	ExecuteGrain(ctx context.Context, in *ExecuteGrainRequest, opts ...grpc.CallOption) (*ExecuteGrainResponse, error)
+	RegisterGrainHandler(ctx context.Context, in *RegisterGrainHandlerRequest, opts ...grpc.CallOption) (SiloService_RegisterGrainHandlerClient, error)
+	ResultStream(ctx context.Context, opts ...grpc.CallOption) (SiloService_ResultStreamClient, error)
 }
 
 type siloServiceClient struct {
@@ -59,6 +61,72 @@ func (c *siloServiceClient) ExecuteGrain(ctx context.Context, in *ExecuteGrainRe
 	return out, nil
 }
 
+func (c *siloServiceClient) RegisterGrainHandler(ctx context.Context, in *RegisterGrainHandlerRequest, opts ...grpc.CallOption) (SiloService_RegisterGrainHandlerClient, error) {
+	stream, err := c.cc.NewStream(ctx, &SiloService_ServiceDesc.Streams[0], "/silo.SiloService/RegisterGrainHandler", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &siloServiceRegisterGrainHandlerClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type SiloService_RegisterGrainHandlerClient interface {
+	Recv() (*GrainExecutionRequest, error)
+	grpc.ClientStream
+}
+
+type siloServiceRegisterGrainHandlerClient struct {
+	grpc.ClientStream
+}
+
+func (x *siloServiceRegisterGrainHandlerClient) Recv() (*GrainExecutionRequest, error) {
+	m := new(GrainExecutionRequest)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *siloServiceClient) ResultStream(ctx context.Context, opts ...grpc.CallOption) (SiloService_ResultStreamClient, error) {
+	stream, err := c.cc.NewStream(ctx, &SiloService_ServiceDesc.Streams[1], "/silo.SiloService/ResultStream", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &siloServiceResultStreamClient{stream}
+	return x, nil
+}
+
+type SiloService_ResultStreamClient interface {
+	Send(*GrainExecutionResult) error
+	CloseAndRecv() (*emptypb.Empty, error)
+	grpc.ClientStream
+}
+
+type siloServiceResultStreamClient struct {
+	grpc.ClientStream
+}
+
+func (x *siloServiceResultStreamClient) Send(m *GrainExecutionResult) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *siloServiceResultStreamClient) CloseAndRecv() (*emptypb.Empty, error) {
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	m := new(emptypb.Empty)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // SiloServiceServer is the server API for SiloService service.
 // All implementations must embed UnimplementedSiloServiceServer
 // for forward compatibility
@@ -66,6 +134,8 @@ type SiloServiceServer interface {
 	Ping(context.Context, *emptypb.Empty) (*PingResponse, error)
 	PlaceGrain(context.Context, *PlaceGrainRequest) (*PlaceGrainResponse, error)
 	ExecuteGrain(context.Context, *ExecuteGrainRequest) (*ExecuteGrainResponse, error)
+	RegisterGrainHandler(*RegisterGrainHandlerRequest, SiloService_RegisterGrainHandlerServer) error
+	ResultStream(SiloService_ResultStreamServer) error
 	mustEmbedUnimplementedSiloServiceServer()
 }
 
@@ -81,6 +151,12 @@ func (UnimplementedSiloServiceServer) PlaceGrain(context.Context, *PlaceGrainReq
 }
 func (UnimplementedSiloServiceServer) ExecuteGrain(context.Context, *ExecuteGrainRequest) (*ExecuteGrainResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ExecuteGrain not implemented")
+}
+func (UnimplementedSiloServiceServer) RegisterGrainHandler(*RegisterGrainHandlerRequest, SiloService_RegisterGrainHandlerServer) error {
+	return status.Errorf(codes.Unimplemented, "method RegisterGrainHandler not implemented")
+}
+func (UnimplementedSiloServiceServer) ResultStream(SiloService_ResultStreamServer) error {
+	return status.Errorf(codes.Unimplemented, "method ResultStream not implemented")
 }
 func (UnimplementedSiloServiceServer) mustEmbedUnimplementedSiloServiceServer() {}
 
@@ -149,6 +225,53 @@ func _SiloService_ExecuteGrain_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SiloService_RegisterGrainHandler_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(RegisterGrainHandlerRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(SiloServiceServer).RegisterGrainHandler(m, &siloServiceRegisterGrainHandlerServer{stream})
+}
+
+type SiloService_RegisterGrainHandlerServer interface {
+	Send(*GrainExecutionRequest) error
+	grpc.ServerStream
+}
+
+type siloServiceRegisterGrainHandlerServer struct {
+	grpc.ServerStream
+}
+
+func (x *siloServiceRegisterGrainHandlerServer) Send(m *GrainExecutionRequest) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _SiloService_ResultStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(SiloServiceServer).ResultStream(&siloServiceResultStreamServer{stream})
+}
+
+type SiloService_ResultStreamServer interface {
+	SendAndClose(*emptypb.Empty) error
+	Recv() (*GrainExecutionResult, error)
+	grpc.ServerStream
+}
+
+type siloServiceResultStreamServer struct {
+	grpc.ServerStream
+}
+
+func (x *siloServiceResultStreamServer) SendAndClose(m *emptypb.Empty) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *siloServiceResultStreamServer) Recv() (*GrainExecutionResult, error) {
+	m := new(GrainExecutionResult)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // SiloService_ServiceDesc is the grpc.ServiceDesc for SiloService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -169,6 +292,17 @@ var SiloService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _SiloService_ExecuteGrain_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "RegisterGrainHandler",
+			Handler:       _SiloService_RegisterGrainHandler_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "ResultStream",
+			Handler:       _SiloService_ResultStream_Handler,
+			ClientStreams: true,
+		},
+	},
 	Metadata: "silo/silo.proto",
 }

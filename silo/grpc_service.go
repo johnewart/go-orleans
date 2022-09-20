@@ -3,6 +3,7 @@ package silo
 import (
 	"context"
 	"fmt"
+	"github.com/johnewart/go-orleans/client"
 	"github.com/johnewart/go-orleans/cluster"
 	"github.com/johnewart/go-orleans/cluster/storage"
 	"github.com/johnewart/go-orleans/cluster/table"
@@ -12,6 +13,7 @@ import (
 	"github.com/johnewart/go-orleans/silo/state/store"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"io"
 	"strconv"
 	"strings"
 	"sync"
@@ -93,6 +95,19 @@ func (s *Service) Ping(_ context.Context, _ *emptypb.Empty) (*pb.PingResponse, e
 	}, nil
 }
 
+func (s *Service) ResultStream(stream pb.SiloService_ResultStreamServer) error {
+	for {
+		in, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		log.Infof(s.ctx, "Received: %v", in)
+	}
+}
+
 func (s *Service) BounceExecutionRequest(ctx context.Context, targetHostPort string, req *pb.ExecuteGrainRequest) (*pb.ExecuteGrainResponse, error) {
 	if conn, err := grpc.Dial(targetHostPort, grpc.WithInsecure()); err != nil {
 		return nil, fmt.Errorf("unable to connect to %v: %v", targetHostPort, err)
@@ -105,6 +120,56 @@ func (s *Service) BounceExecutionRequest(ctx context.Context, targetHostPort str
 			return res, nil
 		}
 	}
+}
+
+func (s *Service) RegisterGrainHandler(req *pb.RegisterGrainHandlerRequest, stream pb.SiloService_RegisterGrainHandlerServer) error {
+	log.Infof(s.ctx, "Registering remote grain handler for %v", req.GrainType)
+
+	c := make(chan *client.Invocation, 100)
+	handle := RemoteGrainHandle{
+		channel: c,
+	}
+
+	s.RegisterHandler(req.GrainType, &handle)
+
+	for {
+		select {
+		case <-c:
+			log.Infof(s.ctx, "Execute %v", req.GrainType)
+			stream.Send(&pb.GrainExecutionRequest{
+				GrainType:  req.GrainType,
+				Data:       []byte("hello"),
+				GrainId:    "123",
+				MethodName: "Hello",
+				RequestId:  "12345",
+			})
+		}
+	}
+	//if err := s.grainHandler.Register(req.GrainType, func(ctx context.Context, g *grain.Grain) (*client.GrainExecution, error) {
+	//	log.Infof(s.ctx, "Executing remote grain handler for %v with id %s", req.GrainType, g.ID)
+	//	stream.Send(&pb.GrainExecutionRequest{
+	//		RequestId:  uuid.New().String(),
+	//		GrainType:  req.GrainType,
+	//		GrainId:    g.ID,
+	//		MethodName: "Hello",
+	//		Data:       g.Data,
+	//	})
+	//	log.Infof(s.ctx, "Sent remote grain handler for %v with id %s", req.GrainType, g.ID)
+	//	time.Sleep(10 * time.Second)
+	//	return &client.GrainExecution{
+	//		GrainID:   g.ID,
+	//		Status:    client.ExecutionSuccess,
+	//		Result:    []byte("Narf"),
+	//		Error:     nil,
+	//		GrainType: g.Type,
+	//	}, nil
+	//}); err != nil {
+	//	log.Errorf(s.ctx, "unable to register grain handler: %v", err)
+	//	return err
+	//} else {
+	//	s.Announce(req.GrainType)
+	//	return nil
+	//}
 }
 
 func (s *Service) ExecuteGrain(ctx context.Context, req *pb.ExecuteGrainRequest) (*pb.ExecuteGrainResponse, error) {
@@ -139,17 +204,24 @@ func (s *Service) ExecuteGrain(ctx context.Context, req *pb.ExecuteGrainRequest)
 
 	if shouldHandle {
 		log.Infof(ctx, "Executing grain %v", req.GrainType)
-		if r, err := s.grainHandler.Handle(ctx, req.GrainType, req.Data); err != nil {
+
+		if r, err := s.grainHandler.Handle(ctx, req.GrainId, req.GrainType, req.Data); err != nil {
 			return &pb.ExecuteGrainResponse{
 				Status: pb.ExecutionStatus_EXECUTION_ERROR,
 				Result: []byte(err.Error()),
 			}, nil
 		} else {
-			return &pb.ExecuteGrainResponse{
-				GrainId: r.GrainID,
-				Status:  pb.ExecutionStatus_EXECUTION_OK,
-				Result:  r.Result,
-			}, nil
+			if r != nil {
+				return &pb.ExecuteGrainResponse{
+					Status: pb.ExecutionStatus_EXECUTION_OK,
+					Result: r.Result,
+				}, nil
+			} else {
+				return &pb.ExecuteGrainResponse{
+					Status: pb.ExecutionStatus_EXECUTION_OK,
+					Result: []byte(""),
+				}, nil
+			}
 		}
 	} else {
 		log.Infof(ctx, "Grain %v is not compatible with silo %v", req.GrainType, s.silo)
@@ -283,27 +355,27 @@ func (s *Service) Start() error {
 	return nil
 }
 
-func (s *Service) RegisterHandler(grainType string, f GrainHandlerFunc) error {
-	if err := s.grainHandler.Register(grainType, f); err != nil {
-		return err
-	} else {
-		for _, g := range s.silo.Grains {
-			if g == grainType {
-				return fmt.Errorf("grain type %s already registered", grainType)
-			}
+func (s *Service) RegisterHandler(grainType string, handle GrainHandle) {
+	s.grainHandler.Register(grainType, handle)
+	s.Announce(grainType)
+}
+func (s *Service) Announce(grainType string) error {
+	for _, g := range s.silo.Grains {
+		if g == grainType {
+			return fmt.Errorf("grain type %s already registered", grainType)
 		}
-
-		s.silo.Grains = append(s.silo.Grains, grainType)
-		log.Infof(s.ctx, "Registered grain type %s", grainType)
-		log.Infof(s.ctx, "Silo now has %d grain types: [%s]", len(s.silo.Grains), strings.Join(s.silo.Grains, ", "))
-		log.Infof(s.ctx, "Re-announcing ourselves!")
-
-		if err = s.membershipTable.Announce(&s.silo); err != nil {
-			log.Warnf(s.ctx, "Unable to announce ourselves: %v", err)
-			return fmt.Errorf("unable to announce new supported grain types: %v", err)
-		} else {
-			return nil
-		}
-
 	}
+
+	s.silo.Grains = append(s.silo.Grains, grainType)
+	log.Infof(s.ctx, "Registered grain type %s", grainType)
+	log.Infof(s.ctx, "Silo now has %d grain types: [%s]", len(s.silo.Grains), strings.Join(s.silo.Grains, ", "))
+	log.Infof(s.ctx, "Re-announcing ourselves!")
+
+	if err := s.membershipTable.Announce(&s.silo); err != nil {
+		log.Warnf(s.ctx, "Unable to announce ourselves: %v", err)
+		return fmt.Errorf("unable to announce new supported grain types: %v", err)
+	} else {
+		return nil
+	}
+
 }

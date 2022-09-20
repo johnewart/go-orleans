@@ -4,6 +4,7 @@ go 1.18
 
 require (
 	github.com/go-redis/redis/v9 v9.0.0-beta.2
+	github.com/google/uuid v1.1.2
 	github.com/lib/pq v1.10.2
 	github.com/uber-go/tally/v4 v4.1.2
 	google.golang.org/grpc v1.48.0

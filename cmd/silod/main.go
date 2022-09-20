@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/johnewart/go-orleans/client"
-	"github.com/johnewart/go-orleans/grain"
 	pb "github.com/johnewart/go-orleans/proto/silo"
 	"github.com/johnewart/go-orleans/silo"
 	"github.com/johnewart/go-orleans/util"
@@ -54,23 +53,22 @@ func main() {
 			os.Exit(-1)
 		}
 
-		if grainType == "HelloWorld" {
-			if err = siloService.RegisterHandler("HelloWorld", func(ctx context.Context, grain *grain.Grain) (*client.GrainExecution, error) {
-				data := grain.Data
+		helloGrain := silo.FunctionalGrainHandle{
+			Handler: func(ctx context.Context, invocation *client.Invocation) (*client.GrainExecution, error) {
+				log.Infof(ctx, "Handling grain of type %s@%s", invocation.GrainType, invocation.GrainID)
+				data := invocation.Data
 				message := fmt.Sprintf("Hello %s", string(data))
 				log.Infof(ctx, "HelloWorld: %s", data)
 				return &client.GrainExecution{
 					Status: client.ExecutionSuccess,
 					Result: []byte(message),
 				}, nil
-			}); err != nil {
-				log.Errorf(ctx, "failed to register HelloWorld handler: %v", err)
-			}
+			},
 		}
 
-		if grainType == "Sleep" {
-			if err = siloService.RegisterHandler("Sleep", func(ctx context.Context, grain *grain.Grain) (*client.GrainExecution, error) {
-				data := grain.Data
+		sleepGrain := silo.FunctionalGrainHandle{
+			Handler: func(ctx context.Context, invocation *client.Invocation) (*client.GrainExecution, error) {
+				data := invocation.Data
 				sleepTime, _ := strconv.Atoi(string(data))
 				log.Infof(ctx, "Sleep grain will sleep for %d seconds...", sleepTime)
 
@@ -81,14 +79,15 @@ func main() {
 				}
 				response := fmt.Sprintf("%d Z%s...", sleepTime, strings.Join(sleepZzs, ""))
 				return &client.GrainExecution{
-					GrainID: grain.ID,
+					GrainID: invocation.GrainID,
 					Status:  client.ExecutionSuccess,
 					Result:  []byte(response),
 				}, nil
-			}); err != nil {
-				log.Errorf(ctx, "failed to register Sleep handler: %v", err)
-			}
+			},
 		}
+
+		siloService.RegisterHandler("HelloWorld", helloGrain)
+		siloService.RegisterHandler("Sleep", sleepGrain)
 
 		go func() {
 			log.Infof(ctx, "starting monitor process...")
