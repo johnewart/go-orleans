@@ -8,7 +8,7 @@ import (
 )
 
 type GrainHandle interface {
-	Invoke(context.Context, *client.Invocation) (*client.GrainExecution, error)
+	Invoke(context.Context, *client.Invocation, chan *client.GrainExecution) error
 }
 
 type RemoteGrainHandle struct {
@@ -16,9 +16,9 @@ type RemoteGrainHandle struct {
 	channel chan *client.Invocation
 }
 
-func (h RemoteGrainHandle) Invoke(ctx context.Context, invocation *client.Invocation) (*client.GrainExecution, error) {
+func (h RemoteGrainHandle) Invoke(ctx context.Context, invocation *client.Invocation, responseChan chan *client.GrainExecution) error {
 	h.channel <- invocation
-	return nil, nil
+	return nil
 }
 
 type FunctionalGrainHandle struct {
@@ -26,49 +26,51 @@ type FunctionalGrainHandle struct {
 	Handler func(context.Context, *client.Invocation) (*client.GrainExecution, error)
 }
 
-func (h FunctionalGrainHandle) Invoke(ctx context.Context, invocation *client.Invocation) (*client.GrainExecution, error) {
-	return h.Handler(ctx, invocation)
+func (h FunctionalGrainHandle) Invoke(ctx context.Context, invocation *client.Invocation, responseChan chan *client.GrainExecution) error {
+	if res, err := h.Handler(ctx, invocation); err != nil {
+		log.Infof(ctx, "Error processing request, sending error response to channel for functionalHandler")
+		responseChan <- &client.GrainExecution{
+			Status: client.ExecutionError,
+			Error:  err,
+		}
+	} else {
+		log.Infof(ctx, "Sending response to channel for functionalHandler")
+		responseChan <- res
+	}
+
+	return nil
 }
 
 type GrainHandlerFunc func(context.Context, *client.Invocation) (*client.GrainExecution, error)
 
-type GrainHandler struct {
+type GrainRegistry struct {
 	handlerMap map[string]GrainHandle
 }
 
-func NewSiloGrainHandler() *GrainHandler {
-	return &GrainHandler{
+func NewSiloGrainRegistry() *GrainRegistry {
+	return &GrainRegistry{
 		handlerMap: make(map[string]GrainHandle),
 	}
 }
 
-func (h *GrainHandler) Register(grainType string, handle GrainHandle) error {
+func (h *GrainRegistry) Register(grainType string, handle GrainHandle) error {
 	h.handlerMap[grainType] = handle
 	return nil
 }
 
-func (h *GrainHandler) Deregister(grainType string) {
+func (h *GrainRegistry) Deregister(grainType string) {
 	delete(h.handlerMap, grainType)
 }
 
-func (h *GrainHandler) Handle(ctx context.Context, grainId string, grainType string, data []byte) (*client.GrainExecution, error) {
-	log.Infof(ctx, "Handling grain of type %s@%s", grainType, grainId)
-	invocation := &client.Invocation{
-		GrainID:    grainId,
-		GrainType:  grainType,
-		Data:       data,
-		Context:    ctx,
-		MethodName: "hullo",
-	}
+func (h *GrainRegistry) Handle(ctx context.Context, invocation *client.Invocation) (chan *client.GrainExecution, error) {
+	log.Infof(ctx, "Handling grain of type %s@%s", invocation.GrainType, invocation.GrainID)
 
-	if handle, ok := h.handlerMap[grainType]; ok {
-		if result, err := handle.Invoke(ctx, invocation); err != nil {
-			return nil, err
-		} else {
-			return result, nil
-		}
+	if handle, ok := h.handlerMap[invocation.GrainType]; ok {
+		ch := make(chan *client.GrainExecution, 1)
+		handle.Invoke(ctx, invocation, ch)
+		return ch, nil
 	} else {
-		return nil, fmt.Errorf("no handler registered for grain type %s", grainType)
+		return nil, fmt.Errorf("no handler registered for grain type %s", invocation.GrainType)
 	}
 
 }

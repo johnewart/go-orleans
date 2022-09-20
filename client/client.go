@@ -11,15 +11,16 @@ import (
 )
 
 type Invocation struct {
-	GrainID    string
-	GrainType  string
-	MethodName string
-	Data       []byte
-	Context    context.Context
+	InvocationId string
+	GrainID      string
+	GrainType    string
+	MethodName   string
+	Data         []byte
+	Context      context.Context
 }
 
 type GrainHandler interface {
-	Handle(*Invocation) error
+	Handle(*Invocation) (GrainExecution, error)
 	//Run(chan *Invocation) error
 }
 
@@ -53,9 +54,10 @@ const (
 )
 
 type GrainCommandStreamHandler struct {
-	stream  pb.SiloService_RegisterGrainHandlerClient
-	ctx     context.Context
-	handler GrainHandler
+	stream       pb.SiloService_RegisterGrainHandlerClient
+	ctx          context.Context
+	handler      GrainHandler
+	resultStream pb.SiloService_ResultStreamClient
 }
 
 func (h *GrainCommandStreamHandler) Run() {
@@ -67,13 +69,31 @@ func (h *GrainCommandStreamHandler) Run() {
 		} else {
 			log.Infof(h.ctx, "Received command: %s", command)
 			invocation := &Invocation{
-				GrainID:    command.GrainId,
-				GrainType:  command.GrainType,
-				MethodName: command.MethodName,
-				Data:       command.Data,
-				Context:    h.ctx,
+				GrainID:      command.GrainId,
+				GrainType:    command.GrainType,
+				MethodName:   command.MethodName,
+				Data:         command.Data,
+				InvocationId: command.RequestId,
+				Context:      h.ctx,
 			}
-			h.handler.Handle(invocation)
+			if result, err := h.handler.Handle(invocation); err != nil {
+				h.resultStream.Send(&pb.GrainExecutionResult{
+					RequestId: command.RequestId,
+					Status:    pb.ExecutionStatus_EXECUTION_ERROR,
+					TestResult: &pb.GrainExecutionResult_Error{
+						Error: err.Error(),
+					},
+				})
+			} else {
+				h.resultStream.Send(&pb.GrainExecutionResult{
+					RequestId: invocation.InvocationId,
+					Status:    pb.ExecutionStatus_EXECUTION_OK,
+					TestResult: &pb.GrainExecutionResult_Result{
+						Result: result.Result,
+					},
+				})
+			}
+
 		}
 	}
 }
@@ -117,17 +137,23 @@ func (c *Client) RegisterGrainHandler(grainMetadata GrainMetadata, handler Grain
 		GrainType:    grainMetadata.Type,
 		GrainVersion: grainMetadata.Version,
 	}
-	if commandStream, err := c.pbClient.RegisterGrainHandler(c.ctx, req); err != nil {
-		return nil, fmt.Errorf("unable to register grain handler %s/%s: %v", grainMetadata.Type, grainMetadata.Version, err)
+
+	if resultStream, err := c.pbClient.ResultStream(c.ctx); err != nil {
+		return nil, fmt.Errorf("unable to open result stream for %s/%s: %v", grainMetadata.Type, grainMetadata.Version, err)
 	} else {
-		c.grainHandlers[grainMetadata] = handler
+		if commandStream, err := c.pbClient.RegisterGrainHandler(c.ctx, req); err != nil {
+			return nil, fmt.Errorf("unable to register grain handler %s/%s: %v", grainMetadata.Type, grainMetadata.Version, err)
+		} else {
+			c.grainHandlers[grainMetadata] = handler
 
-		return &GrainCommandStreamHandler{
-			stream:  commandStream,
-			ctx:     c.ctx,
-			handler: handler,
-		}, nil
+			return &GrainCommandStreamHandler{
+				stream:       commandStream,
+				resultStream: resultStream,
+				ctx:          c.ctx,
+				handler:      handler,
+			}, nil
 
+		}
 	}
 
 }

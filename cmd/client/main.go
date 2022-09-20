@@ -14,9 +14,13 @@ type HelloGrain struct {
 	client.GrainHandler
 }
 
-func (h HelloGrain) Handle(invocation *client.Invocation) error {
+func (h HelloGrain) Handle(invocation *client.Invocation) (client.GrainExecution, error) {
 	log.Infof(invocation.Context, "Handling grain of type %s@%s", invocation.GrainType, invocation.GrainID)
-	return nil
+	return client.GrainExecution{
+		GrainID:   invocation.GrainID,
+		Result:    []byte("Ohai!"),
+		GrainType: invocation.GrainType,
+	}, nil
 }
 
 func main() {
@@ -64,11 +68,14 @@ func main() {
 		Data: []byte("Samus Aran"),
 	}
 
+	log.Infof(ctx, "Scheduling grain: %v", og)
 	if res := c.ScheduleGrain(&og); res.Error != nil {
 		log.Warnf(ctx, "Unable to schedule grain: %v", res.Error)
 	} else {
 		log.Infof(ctx, "Execution result: %s", res.String())
 	}
+
+	log.Infof(ctx, "Waiting for command handler to finish...")
 
 	commandWg.Wait()
 	/*

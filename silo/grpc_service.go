@@ -3,6 +3,7 @@ package silo
 import (
 	"context"
 	"fmt"
+	"github.com/google/uuid"
 	"github.com/johnewart/go-orleans/client"
 	"github.com/johnewart/go-orleans/cluster"
 	"github.com/johnewart/go-orleans/cluster/storage"
@@ -31,8 +32,9 @@ type Service struct {
 	heartbeatInterval time.Duration
 	metrics           *MetricsRegistry
 	silo              cluster.Member
-	grainHandler      *GrainHandler
+	grainHandler      *GrainRegistry
 	grainLocator      locator.GrainLocator
+	grainResponseMap  map[string]chan *client.GrainExecution
 }
 
 type ServiceConfig struct {
@@ -83,8 +85,9 @@ func NewSiloService(ctx context.Context, config ServiceConfig) (*Service, error)
 		heartbeatInterval: config.HearbeatInterval,
 		metrics:           NewMetricRegistry(config.MetricsPort),
 		silo:              member,
-		grainHandler:      NewSiloGrainHandler(),
+		grainHandler:      NewSiloGrainRegistry(),
 		grainLocator:      locationStore,
+		grainResponseMap:  make(map[string]chan *client.GrainExecution),
 	}, nil
 
 }
@@ -105,6 +108,18 @@ func (s *Service) ResultStream(stream pb.SiloService_ResultStreamServer) error {
 			return err
 		}
 		log.Infof(s.ctx, "Received: %v", in)
+
+		if ch, ok := s.grainResponseMap[in.RequestId]; ok {
+			if in.GetResult() != nil {
+				ch <- &client.GrainExecution{
+					GrainID:   "grain-id",
+					GrainType: "grain-type",
+					Result:    in.GetResult(),
+					Error:     nil,
+					Status:    client.ExecutionSuccess,
+				}
+			}
+		}
 	}
 }
 
@@ -134,14 +149,18 @@ func (s *Service) RegisterGrainHandler(req *pb.RegisterGrainHandlerRequest, stre
 
 	for {
 		select {
-		case <-c:
+		case invocation := <-c:
 			log.Infof(s.ctx, "Execute %v", req.GrainType)
+			if _, ok := s.grainResponseMap[invocation.InvocationId]; !ok {
+				s.grainResponseMap[invocation.InvocationId] = make(chan *client.GrainExecution, 100)
+			}
+
 			stream.Send(&pb.GrainExecutionRequest{
 				GrainType:  req.GrainType,
 				Data:       []byte("hello"),
 				GrainId:    "123",
 				MethodName: "Hello",
-				RequestId:  "12345",
+				RequestId:  invocation.InvocationId,
 			})
 		}
 	}
@@ -203,20 +222,39 @@ func (s *Service) ExecuteGrain(ctx context.Context, req *pb.ExecuteGrainRequest)
 	}
 
 	if shouldHandle {
-		log.Infof(ctx, "Executing grain %v", req.GrainType)
 
-		if r, err := s.grainHandler.Handle(ctx, req.GrainId, req.GrainType, req.Data); err != nil {
+		log.Infof(ctx, "Executing grain %v", req.GrainType)
+		invocationId := uuid.New().String()
+		invocation := &client.Invocation{
+			GrainID:      req.GrainId,
+			GrainType:    req.GrainType,
+			MethodName:   "Invoke",
+			Data:         req.Data,
+			InvocationId: invocationId,
+		}
+
+		if resultChan, err := s.grainHandler.Handle(ctx, invocation); err != nil {
 			return &pb.ExecuteGrainResponse{
 				Status: pb.ExecutionStatus_EXECUTION_ERROR,
 				Result: []byte(err.Error()),
 			}, nil
 		} else {
-			if r != nil {
-				return &pb.ExecuteGrainResponse{
-					Status: pb.ExecutionStatus_EXECUTION_OK,
-					Result: r.Result,
-				}, nil
+
+			if resultChan != nil {
+				// Store channel for later remote callback
+				s.grainResponseMap[invocationId] = resultChan
+				log.Infof(ctx, "Waiting for result of grain execution...")
+				select {
+				case r := <-resultChan:
+					log.Infof(ctx, "Got result of grain execution: %v", r)
+					return &pb.ExecuteGrainResponse{
+						Status: pb.ExecutionStatus_EXECUTION_OK,
+						Result: r.Result,
+					}, nil
+					// TODO: timeout / cancel
+				}
 			} else {
+				log.Infof(ctx, "No result channel returned")
 				return &pb.ExecuteGrainResponse{
 					Status: pb.ExecutionStatus_EXECUTION_OK,
 					Result: []byte(""),
