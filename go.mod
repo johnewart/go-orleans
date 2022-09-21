@@ -5,6 +5,8 @@ go 1.18
 require (
 	github.com/go-redis/redis/v9 v9.0.0-beta.2
 	github.com/google/uuid v1.1.2
+	github.com/johnewart/go-timescheduler v0.0.0-00010101000000-000000000000
+	github.com/joho/godotenv v1.4.0
 	github.com/lib/pq v1.10.2
 	github.com/uber-go/tally/v4 v4.1.2
 	google.golang.org/grpc v1.48.0
@@ -43,3 +45,5 @@ require (
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/genproto v0.0.0-20200526211855-cb27e3aa2013 // indirect
 )
+
+replace github.com/johnewart/go-timescheduler => ../go-timescheduler

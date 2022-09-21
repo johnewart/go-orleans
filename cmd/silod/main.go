@@ -3,22 +3,32 @@ package main
 import (
 	"context"
 	"fmt"
+
 	"github.com/johnewart/go-orleans/grains"
 	pb "github.com/johnewart/go-orleans/proto/silo"
 	"github.com/johnewart/go-orleans/services"
 	"github.com/johnewart/go-orleans/silo"
 	"github.com/johnewart/go-orleans/util"
-	"google.golang.org/grpc"
+	"github.com/joho/godotenv"
+
 	"net"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"google.golang.org/grpc"
 	"zombiezen.com/go/log"
 )
 
 func main() {
 	ctx := context.Background()
+
+	err := godotenv.Load()
+	if err != nil {
+		log.Warnf(ctx, "Error loading .env file: %v", err)
+	}
+
 	port := os.Getenv("PORT")
 	metricsPort := os.Getenv("METRICS_PORT")
 	dsn := os.Getenv("DATABASE_URL")
@@ -64,7 +74,7 @@ func main() {
 
 			helloGrain := silo.FunctionalGrainHandle{
 				Handler: func(ctx context.Context, invocation *grains.Invocation) (*grains.GrainExecution, error) {
-					log.Infof(ctx, "Handling grains of type %s@%s", invocation.GrainType, invocation.GrainID)
+					log.Infof(ctx, "FunctionalHandler.hello handling %s@%s", invocation.GrainType, invocation.GrainID)
 					data := invocation.Data
 					message := fmt.Sprintf("Hello %s", string(data))
 					log.Infof(ctx, "HelloWorld: %s", data)
@@ -105,7 +115,7 @@ func main() {
 				}
 			}()
 
-			lis, listenErr := net.Listen("tcp", fmt.Sprintf(":%d", p))
+			lis, listenErr := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", p))
 			if listenErr != nil {
 				log.Errorf(ctx, "failed to listen: %v", listenErr)
 			}

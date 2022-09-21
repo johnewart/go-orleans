@@ -3,23 +3,45 @@ package services
 import (
 	"context"
 	"fmt"
+	"io"
+	"sync"
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/johnewart/go-orleans/grains"
 	pb "github.com/johnewart/go-orleans/proto/silo"
 	"github.com/johnewart/go-orleans/silo"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"io"
-	"time"
 	"zombiezen.com/go/log"
 )
+
+type GrainResponseMap struct {
+	sync.Map
+}
+
+func (g *GrainResponseMap) LoadChannel(key string) (chan *grains.GrainExecution, bool) {
+	if item, ok := g.Load(key); !ok {
+		log.Infof(context.Background(), "Unable to find channel for %s", key)
+		return nil, false
+	} else {
+		log.Infof(context.Background(), "Found channel for request %s", key)
+		return item.(chan *grains.GrainExecution), true
+	}
+}
+
+func (g *GrainResponseMap) StoreChannel(requestId string, c chan *grains.GrainExecution) error {
+	log.Infof(context.Background(), "Storing channel for request id %s", requestId)
+	g.Store(requestId, c)
+	return nil
+}
 
 type Service struct {
 	pb.UnimplementedSiloServiceServer
 
 	ctx              context.Context
 	silo             *silo.Silo
-	grainResponseMap map[string]chan *grains.GrainExecution
+	grainResponseMap *GrainResponseMap
 }
 
 type ServiceConfig struct {
@@ -30,7 +52,7 @@ func NewSiloService(ctx context.Context, config ServiceConfig) (*Service, error)
 	return &Service{
 		ctx:              ctx,
 		silo:             config.Silo,
-		grainResponseMap: make(map[string]chan *grains.GrainExecution),
+		grainResponseMap: &GrainResponseMap{}, // //make(map[string]chan *grains.GrainExecution),
 	}, nil
 }
 
@@ -51,7 +73,8 @@ func (s *Service) ResultStream(stream pb.SiloService_ResultStreamServer) error {
 		}
 		log.Infof(s.ctx, "Received: %v", in)
 
-		if ch, ok := s.grainResponseMap[in.RequestId]; ok {
+		if ch, ok := s.grainResponseMap.LoadChannel(in.RequestId); ok {
+			log.Infof(s.ctx, "Found channel for grain response!")
 			if in.GetResult() != nil {
 				ch <- &grains.GrainExecution{
 					GrainID:   "grains-id",
@@ -61,6 +84,8 @@ func (s *Service) ResultStream(stream pb.SiloService_ResultStreamServer) error {
 					Status:    grains.ExecutionSuccess,
 				}
 			}
+		} else {
+			log.Infof(s.ctx, "Unable to find channel for request: %s", in.RequestId)
 		}
 	}
 }
@@ -93,8 +118,9 @@ func (s *Service) RegisterGrainHandler(req *pb.RegisterGrainHandlerRequest, stre
 		select {
 		case invocation := <-c:
 			log.Infof(s.ctx, "Execute %v", req.GrainType)
-			if _, ok := s.grainResponseMap[invocation.InvocationId]; !ok {
-				s.grainResponseMap[invocation.InvocationId] = make(chan *grains.GrainExecution, 100)
+
+			if _, ok := s.grainResponseMap.LoadChannel(invocation.InvocationId); !ok {
+				s.grainResponseMap.StoreChannel(invocation.InvocationId, make(chan *grains.GrainExecution, 100))
 			}
 
 			stream.Send(&pb.GrainExecutionRequest{
@@ -159,7 +185,7 @@ func (s *Service) ExecuteGrain(ctx context.Context, req *pb.ExecuteGrainRequest)
 
 			if resultChan != nil {
 				// Store channel for later remote callback
-				s.grainResponseMap[invocationId] = resultChan
+				s.grainResponseMap.StoreChannel(invocationId, resultChan)
 				log.Infof(ctx, "Waiting for result of grains execution...")
 				select {
 				case r := <-resultChan:

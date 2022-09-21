@@ -178,7 +178,7 @@ func (c *Client) ScheduleReminder(reminder *silo.Reminder) error {
 		GrainType:    reminder.GrainType,
 		ReminderName: reminder.ReminderName,
 		Period:       int64(reminder.Period.Seconds()),
-		DueTime:      reminder.DueTime.UnixMilli(),
+		DueTime:      reminder.FireAt.UnixMilli(),
 		Data:         reminder.Data,
 	}
 

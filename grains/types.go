@@ -29,3 +29,24 @@ type Invocation struct {
 	Data         []byte
 	Context      context.Context
 }
+
+type Grain struct {
+	ID   string
+	Type string
+	Data []byte
+}
+
+type ExecutionStatus int
+
+const (
+	ExecutionError ExecutionStatus = iota
+	ExecutionSuccess
+	ExecutionNoLongerAbleToRun
+)
+
+type ScheduleStatus int
+
+const (
+	ScheduleError ScheduleStatus = iota
+	ScheduleSuccess
+)
