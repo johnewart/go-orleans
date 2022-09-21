@@ -27,7 +27,7 @@ func NewRedisGrainStateStore(redisHostPort string) *RedisGrainStateStore {
 
 func (r *RedisGrainStateStore) Get(grainType string, grainId string) (*types.GrainState, error) {
 	if stateData, err := r.client.Get(r.ctx, grainType+":"+grainId).Result(); err != nil {
-		return nil, fmt.Errorf("unable to get grain state: %v", err)
+		return nil, fmt.Errorf("unable to get grains state: %v", err)
 	} else {
 		return &types.GrainState{
 			GrainType: grainType,

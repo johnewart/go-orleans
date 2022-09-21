@@ -2,9 +2,10 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"github.com/johnewart/go-orleans/client"
-	"github.com/johnewart/go-orleans/grain"
-	"github.com/johnewart/go-orleans/reminders"
+	"github.com/johnewart/go-orleans/grains"
+	"github.com/johnewart/go-orleans/silo"
 	"os"
 	"strconv"
 	"sync"
@@ -16,11 +17,11 @@ type HelloGrain struct {
 	client.GrainHandler
 }
 
-func (h HelloGrain) Handle(invocation *client.Invocation) (client.GrainExecution, error) {
-	log.Infof(invocation.Context, "Handling grain of type %s@%s", invocation.GrainType, invocation.GrainID)
-	return client.GrainExecution{
+func (h HelloGrain) Handle(invocation *grains.Invocation) (grains.GrainExecution, error) {
+	log.Infof(invocation.Context, "Handling grains of type %s@%s", invocation.GrainType, invocation.GrainID)
+	return grains.GrainExecution{
 		GrainID:   invocation.GrainID,
-		Result:    []byte("Ohai!"),
+		Result:    []byte(fmt.Sprintf("Ohai, %s!", string(invocation.Data))),
 		GrainType: invocation.GrainType,
 	}, nil
 }
@@ -36,23 +37,24 @@ func main() {
 
 	c := client.NewClient(ctx, clusterHost, clusterPort)
 
-	g := grain.Grain{
+	g := grains.Grain{
 		Type: "HelloWorld",
 		Data: []byte("Samus Aran"),
 	}
 
 	if res := c.ScheduleGrain(&g); res.Error != nil {
-		log.Warnf(ctx, "Unable to schedule grain: %v", res.Error)
+		log.Warnf(ctx, "Unable to schedule grains: %v", res.Error)
 	} else {
 		log.Infof(ctx, "Grain result: %s", res.Result)
 	}
 
-	if err := c.ScheduleReminder(&reminders.Reminder{
-		GrainType: "HelloWorld",
-		GrainId:   "Samus Aran",
-		Period:    10 * time.Second,
-		DueTime:   time.Now(),
-		Data:      []byte("Samus Aran"),
+	if err := c.ScheduleReminder(&silo.Reminder{
+		ReminderName: "ReminderFoo!",
+		GrainType:    "Ohai",
+		GrainId:      "Samus Aran",
+		Period:       10 * time.Second,
+		DueTime:      time.Now(),
+		Data:         []byte("Samus Aran"),
 	}); err != nil {
 		log.Warnf(ctx, "Unable to schedule reminder: %v", err)
 	}
@@ -62,9 +64,9 @@ func main() {
 	commandWg := sync.WaitGroup{}
 
 	if commandHandler, err := c.RegisterGrainHandler(metadata, HelloGrain{}); err != nil {
-		log.Warnf(ctx, "Unable to register grain handler: %v", err)
+		log.Warnf(ctx, "Unable to register grains handler: %v", err)
 	} else {
-		log.Infof(ctx, "Registered grain handler: %v", commandHandler)
+		log.Infof(ctx, "Registered grains handler: %v", commandHandler)
 		commandWg.Add(1)
 
 		go func() {
@@ -74,15 +76,15 @@ func main() {
 		}()
 	}
 
-	og := grain.Grain{
+	og := grains.Grain{
 		Type: "Ohai",
 		ID:   "1",
 		Data: []byte("Samus Aran"),
 	}
 
-	log.Infof(ctx, "Scheduling grain: %v", og)
+	log.Infof(ctx, "Scheduling grains: %v", og)
 	if res := c.ScheduleGrain(&og); res.Error != nil {
-		log.Warnf(ctx, "Unable to schedule grain: %v", res.Error)
+		log.Warnf(ctx, "Unable to schedule grains: %v", res.Error)
 	} else {
 		log.Infof(ctx, "Execution result: %s", res.String())
 	}
@@ -96,12 +98,12 @@ func main() {
 		wg := sync.WaitGroup{}
 		for i := 0; i <= 5; i++ {
 			sleepTime := 20 - i*2
-			sleepGrain := grain.Grain{
+			sleepGrain := grains.Grain{
 				ID:   fmt.Sprintf("sleep-%d", i),
 				Type: "Sleep",
 				Data: []byte(fmt.Sprintf("%d", sleepTime)),
 			}
-			log.Infof(ctx, "Scheduling grain %d", i)
+			log.Infof(ctx, "Scheduling grains %d", i)
 			wg.Add(1)
 
 			c.ScheduleGrainAsync(&sleepGrain, func(res *client.GrainExecution) {

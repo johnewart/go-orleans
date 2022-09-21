@@ -3,13 +3,11 @@ package silo
 import (
 	"context"
 	"fmt"
-	"github.com/johnewart/go-orleans/client"
 	"github.com/johnewart/go-orleans/cluster"
 	"github.com/johnewart/go-orleans/cluster/storage"
 	"github.com/johnewart/go-orleans/cluster/table"
-	"github.com/johnewart/go-orleans/grain"
+	"github.com/johnewart/go-orleans/grains"
 	pb "github.com/johnewart/go-orleans/proto/silo"
-	"github.com/johnewart/go-orleans/reminders"
 	"github.com/johnewart/go-orleans/silo/locator"
 	"github.com/johnewart/go-orleans/silo/state/store"
 	"google.golang.org/grpc"
@@ -42,9 +40,9 @@ type Silo struct {
 	silo              cluster.Member
 	grainHandler      *GrainRegistry
 	grainLocator      locator.GrainLocator
-	grainResponseMap  map[string]chan *client.GrainExecution
-	reminderRegistry  *reminders.ReminderRegistry
+	grainResponseMap  map[string]chan *grains.GrainExecution
 	reminderTicker    *time.Ticker
+	reminderRegistry  *ReminderRegistry
 }
 
 func NewSilo(ctx context.Context, config SiloConfig) (*Silo, error) {
@@ -84,13 +82,12 @@ func NewSilo(ctx context.Context, config SiloConfig) (*Silo, error) {
 		servicePort:       config.ServicePort,
 		startEpoch:        startEpoch,
 		heartbeatInterval: config.HearbeatInterval,
-		reminderTicker:    time.NewTicker(config.ReminderInterval),
 		metrics:           NewMetricRegistry(config.MetricsPort),
 		silo:              member,
 		grainHandler:      NewSiloGrainRegistry(),
 		grainLocator:      locationStore,
-		reminderRegistry:  reminders.NewReminderRegistry(),
-		grainResponseMap:  map[string]chan *client.GrainExecution{},
+		grainResponseMap:  map[string]chan *grains.GrainExecution{},
+		reminderRegistry:  NewReminderRegistry(ctx),
 	}, nil
 }
 
@@ -98,9 +95,10 @@ func (s *Silo) Ping() int64 {
 	return s.startEpoch
 }
 
-func (s *Silo) Handle(ctx context.Context, invocation *client.Invocation) (chan *client.GrainExecution, error) {
+func (s *Silo) Handle(ctx context.Context, invocation *grains.Invocation) (chan *grains.GrainExecution, error) {
 	return s.grainHandler.Handle(ctx, invocation)
 }
+
 func (s *Silo) CanHandle(grainType string) bool {
 	return s.silo.CanHandle(grainType)
 }
@@ -126,37 +124,8 @@ func (s *Silo) RegisterGrain(grainType, grainId string) error {
 func (s *Silo) IsLocal(member *cluster.Member) bool {
 	return member.IP == s.routableIP && member.Port == s.servicePort
 }
-
-func (s *Silo) RegisterReminder(ctx context.Context, req *pb.RegisterReminderRequest) (*pb.RegisterReminderResponse, error) {
-	dueTime := time.UnixMilli(int64(req.DueTime))
-	period := time.Duration(req.Period) * time.Second
-
-	s.reminderRegistry.Register(req.ReminderName, req.GrainId, dueTime, period)
-	return &pb.RegisterReminderResponse{
-		ReminderId: req.ReminderName,
-	}, nil
-}
-
-func (s *Silo) PlaceGrain(ctx context.Context, req *pb.PlaceGrainRequest) (*pb.PlaceGrainResponse, error) {
-	g := grain.Grain{
-		ID:   req.GrainId,
-		Type: req.GrainType,
-		Data: []byte{},
-	}
-
-	target := s.membershipTable.GetSiloForGrain(g)
-
-	if target == nil {
-		return &pb.PlaceGrainResponse{
-			Status: pb.PlacementStatus_PLACEMENT_NO_COMPATIBLE_SILO,
-		}, nil
-	} else {
-		// Place grain
-		return &pb.PlaceGrainResponse{
-			Status: pb.PlacementStatus_PLACEMENT_OK,
-		}, nil
-	}
-
+func (s *Silo) GetSiloForGrain(g grains.Grain) *cluster.Member {
+	return s.membershipTable.GetSiloForGrain(g)
 }
 
 func (s *Silo) StartMonitorProcess() error {
@@ -222,20 +191,6 @@ func (s *Silo) StartMembershipUpdateProcess() error {
 	}
 }
 
-func (s *Silo) StartReminderProcess(ctx context.Context) error {
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case t := <-s.reminderTicker.C:
-			log.Infof(s.ctx, "Reminder tick at %v", t)
-			s.reminderRegistry.Tick()
-		}
-	}
-
-}
-
 func (s *Silo) Start() error {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -263,7 +218,7 @@ func (s *Silo) Start() error {
 
 	go func() {
 		log.Infof(s.ctx, "Starting reminder process")
-		if err := s.StartReminderProcess(s.ctx); err != nil {
+		if err := s.reminderRegistry.StartReminderProcess(s); err != nil {
 			log.Warnf(s.ctx, "Unable to start reminder process: %v", err)
 		}
 	}()
@@ -280,20 +235,25 @@ func (s *Silo) RegisterHandler(grainType string, handle GrainHandle) {
 func (s *Silo) Announce(grainType string) error {
 	for _, g := range s.silo.Grains {
 		if g == grainType {
-			return fmt.Errorf("grain type %s already registered", grainType)
+			return fmt.Errorf("grains type %s already registered", grainType)
 		}
 	}
 
 	s.silo.Grains = append(s.silo.Grains, grainType)
-	log.Infof(s.ctx, "Registered grain type %s", grainType)
-	log.Infof(s.ctx, "Silo now has %d grain types: [%s]", len(s.silo.Grains), strings.Join(s.silo.Grains, ", "))
+	log.Infof(s.ctx, "Registered grains type %s", grainType)
+	log.Infof(s.ctx, "Silo now has %d grains types: [%s]", len(s.silo.Grains), strings.Join(s.silo.Grains, ", "))
 	log.Infof(s.ctx, "Re-announcing ourselves!")
 
 	if err := s.membershipTable.Announce(&s.silo); err != nil {
 		log.Warnf(s.ctx, "Unable to announce ourselves: %v", err)
-		return fmt.Errorf("unable to announce new supported grain types: %v", err)
+		return fmt.Errorf("unable to announce new supported grains types: %v", err)
 	} else {
 		return nil
 	}
+
+}
+
+func (s *Silo) RegisterReminder(name string, grainType string, grainId string, dueTime time.Time, period time.Duration) error {
+	return s.reminderRegistry.Register(name, grainType, grainId, dueTime, period)
 
 }

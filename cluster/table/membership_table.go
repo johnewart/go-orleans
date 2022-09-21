@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/johnewart/go-orleans/cluster"
 	"github.com/johnewart/go-orleans/cluster/storage"
-	"github.com/johnewart/go-orleans/grain"
+	"github.com/johnewart/go-orleans/grains"
 	"math"
 	"time"
 	"zombiezen.com/go/log"
@@ -109,7 +109,7 @@ func (t *MembershipTable) Unlock() {
 
 }
 
-func (t *MembershipTable) GetSiloForGrain(g grain.Grain) *cluster.Member {
+func (t *MembershipTable) GetSiloForGrain(g grains.Grain) *cluster.Member {
 	switch t.config.PlacementMethod {
 	case RandomPlacement:
 	case RoundRobin:

@@ -3,8 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/johnewart/go-orleans/client"
+	"github.com/johnewart/go-orleans/grains"
 	pb "github.com/johnewart/go-orleans/proto/silo"
+	"github.com/johnewart/go-orleans/services"
 	"github.com/johnewart/go-orleans/silo"
 	"github.com/johnewart/go-orleans/util"
 	"google.golang.org/grpc"
@@ -49,36 +50,36 @@ func main() {
 			ReminderInterval: 5 * time.Second,
 		}
 		if siloNode, err := silo.NewSilo(ctx, siloConfig); err != nil {
-
+			log.Errorf(ctx, "failed to create silo: %v", err)
 		} else {
-			svcConfig := silo.ServiceConfig{
+			svcConfig := services.ServiceConfig{
 				Silo: siloNode,
 			}
 
-			siloService, svcErr := silo.NewSiloService(ctx, svcConfig)
+			siloService, svcErr := services.NewSiloService(ctx, svcConfig)
 			if svcErr != nil {
 				log.Errorf(ctx, "failed to create silo service: %v", svcErr)
 				os.Exit(-1)
 			}
 
 			helloGrain := silo.FunctionalGrainHandle{
-				Handler: func(ctx context.Context, invocation *client.Invocation) (*client.GrainExecution, error) {
-					log.Infof(ctx, "Handling grain of type %s@%s", invocation.GrainType, invocation.GrainID)
+				Handler: func(ctx context.Context, invocation *grains.Invocation) (*grains.GrainExecution, error) {
+					log.Infof(ctx, "Handling grains of type %s@%s", invocation.GrainType, invocation.GrainID)
 					data := invocation.Data
 					message := fmt.Sprintf("Hello %s", string(data))
 					log.Infof(ctx, "HelloWorld: %s", data)
-					return &client.GrainExecution{
-						Status: client.ExecutionSuccess,
+					return &grains.GrainExecution{
+						Status: grains.ExecutionSuccess,
 						Result: []byte(message),
 					}, nil
 				},
 			}
 
 			sleepGrain := silo.FunctionalGrainHandle{
-				Handler: func(ctx context.Context, invocation *client.Invocation) (*client.GrainExecution, error) {
+				Handler: func(ctx context.Context, invocation *grains.Invocation) (*grains.GrainExecution, error) {
 					data := invocation.Data
 					sleepTime, _ := strconv.Atoi(string(data))
-					log.Infof(ctx, "Sleep grain will sleep for %d seconds...", sleepTime)
+					log.Infof(ctx, "Sleep grains will sleep for %d seconds...", sleepTime)
 
 					time.Sleep(time.Duration(sleepTime) * time.Second)
 					sleepZzs := make([]string, 0)
@@ -86,9 +87,9 @@ func main() {
 						sleepZzs = append(sleepZzs, "z")
 					}
 					response := fmt.Sprintf("%d Z%s...", sleepTime, strings.Join(sleepZzs, ""))
-					return &client.GrainExecution{
+					return &grains.GrainExecution{
 						GrainID: invocation.GrainID,
-						Status:  client.ExecutionSuccess,
+						Status:  grains.ExecutionSuccess,
 						Result:  []byte(response),
 					}, nil
 				},
@@ -118,4 +119,5 @@ func main() {
 			}
 		}
 	}
+
 }

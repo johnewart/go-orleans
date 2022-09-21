@@ -47,13 +47,13 @@ func (r *RedisLocator) PutSilo(grainType string, grainId string, silo cluster.Me
 		IP:   silo.IP,
 		Port: silo.Port,
 	}
-	redisSiloJson, err := json.Marshal(redisSilo);
+	redisSiloJson, err := json.Marshal(redisSilo)
 	if err != nil {
 		return fmt.Errorf("unable to marshal silo: %v", err)
 	}
 
 	if _, err := r.redisClient.Set(r.ctx, r.locationKeyForGrain(grainType, grainId), redisSiloJson, 0).Result(); err != nil {
-		return fmt.Errorf("unable to set grain silo: %v", err)
+		return fmt.Errorf("unable to set grains silo: %v", err)
 	} else {
 		return nil
 	}
@@ -64,11 +64,11 @@ func (r *RedisLocator) GetSilo(grainType string, grainId string) (*cluster.Membe
 		if err == redis.Nil {
 			return nil, nil
 		} else {
-			return nil, fmt.Errorf("unable to get grain silo: %v", err)
+			return nil, fmt.Errorf("unable to get grains silo: %v", err)
 		}
 	} else {
 		var redisSilo RedisSilo
-		decodeErr := json.Unmarshal([]byte(res), &redisSilo);
+		decodeErr := json.Unmarshal([]byte(res), &redisSilo)
 		if decodeErr != nil {
 			return nil, fmt.Errorf("unable to decode silo: %v", decodeErr)
 		}

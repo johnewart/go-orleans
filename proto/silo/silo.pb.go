@@ -121,7 +121,7 @@ type ExecutionStatus int32
 const (
 	ExecutionStatus_EXECUTION_OK             ExecutionStatus = 0
 	ExecutionStatus_EXECUTION_ERROR          ExecutionStatus = 1
-	ExecutionStatus_EXECUTION_NO_LONGER_ABLE ExecutionStatus = 2 // The grain is no longer able to execute
+	ExecutionStatus_EXECUTION_NO_LONGER_ABLE ExecutionStatus = 2 // The grains is no longer able to execute
 )
 
 // Enum value maps for ExecutionStatus.

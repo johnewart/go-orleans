@@ -3,25 +3,16 @@ package client
 import (
 	"context"
 	"fmt"
-	"github.com/johnewart/go-orleans/grain"
+	"github.com/johnewart/go-orleans/grains"
 	pb "github.com/johnewart/go-orleans/proto/silo"
-	"github.com/johnewart/go-orleans/reminders"
+	"github.com/johnewart/go-orleans/silo"
 	"google.golang.org/grpc"
 	"time"
 	"zombiezen.com/go/log"
 )
 
-type Invocation struct {
-	InvocationId string
-	GrainID      string
-	GrainType    string
-	MethodName   string
-	Data         []byte
-	Context      context.Context
-}
-
 type GrainHandler interface {
-	Handle(*Invocation) (GrainExecution, error)
+	Handle(*grains.Invocation) (grains.GrainExecution, error)
 }
 
 type GrainMetadata struct {
@@ -38,21 +29,6 @@ type Client struct {
 	grainHandlers map[GrainMetadata]GrainHandler
 }
 
-type ExecutionStatus int
-
-const (
-	ExecutionError ExecutionStatus = iota
-	ExecutionSuccess
-	ExecutionNoLongerAbleToRun
-)
-
-type ScheduleStatus int
-
-const (
-	ScheduleError ScheduleStatus = iota
-	ScheduleSuccess
-)
-
 type GrainCommandStreamHandler struct {
 	stream       pb.SiloService_RegisterGrainHandlerClient
 	ctx          context.Context
@@ -68,7 +44,7 @@ func (h *GrainCommandStreamHandler) Run() {
 			time.Sleep(2 * time.Second)
 		} else {
 			log.Infof(h.ctx, "Received command: %s", command)
-			invocation := &Invocation{
+			invocation := &grains.Invocation{
 				GrainID:      command.GrainId,
 				GrainType:    command.GrainType,
 				MethodName:   command.MethodName,
@@ -96,22 +72,6 @@ func (h *GrainCommandStreamHandler) Run() {
 
 		}
 	}
-}
-
-type GrainExecution struct {
-	GrainID   string
-	Status    ExecutionStatus
-	Result    []byte
-	Error     error
-	GrainType string
-}
-
-func (ge *GrainExecution) IsSuccessful() bool {
-	return ge.Status == ExecutionSuccess
-}
-
-func (ge *GrainExecution) String() string {
-	return fmt.Sprintf("GrainExecution{GrainID: %s, Status: %d, Result: %s, Error: %v}", ge.GrainID, ge.Status, ge.Result, ge.Error)
 }
 
 func NewClient(ctx context.Context, clusterHost string, clusterPort int) *Client {
@@ -142,7 +102,7 @@ func (c *Client) RegisterGrainHandler(grainMetadata GrainMetadata, handler Grain
 		return nil, fmt.Errorf("unable to open result stream for %s/%s: %v", grainMetadata.Type, grainMetadata.Version, err)
 	} else {
 		if commandStream, err := c.pbClient.RegisterGrainHandler(c.ctx, req); err != nil {
-			return nil, fmt.Errorf("unable to register grain handler %s/%s: %v", grainMetadata.Type, grainMetadata.Version, err)
+			return nil, fmt.Errorf("unable to register grains handler %s/%s: %v", grainMetadata.Type, grainMetadata.Version, err)
 		} else {
 			c.grainHandlers[grainMetadata] = handler
 
@@ -158,52 +118,52 @@ func (c *Client) RegisterGrainHandler(grainMetadata GrainMetadata, handler Grain
 
 }
 
-func (c *Client) ScheduleGrain(grain *grain.Grain) GrainExecution {
+func (c *Client) ScheduleGrain(g *grains.Grain) grains.GrainExecution {
 	req := &pb.ExecuteGrainRequest{
-		GrainId:   grain.ID,
-		GrainType: grain.Type,
-		Data:      grain.Data,
+		GrainId:   g.ID,
+		GrainType: g.Type,
+		Data:      g.Data,
 	}
 	if result, err := c.pbClient.ExecuteGrain(c.ctx, req); err != nil {
-		return GrainExecution{
-			GrainID:   grain.ID,
-			GrainType: grain.Type,
-			Status:    ExecutionError,
-			Error:     fmt.Errorf("unable to schedule grain: %v", err),
+		return grains.GrainExecution{
+			GrainID:   g.ID,
+			GrainType: g.Type,
+			Status:    grains.ExecutionError,
+			Error:     fmt.Errorf("unable to schedule grains: %v", err),
 		}
 	} else {
 		if result.Status == pb.ExecutionStatus_EXECUTION_NO_LONGER_ABLE {
-			return GrainExecution{
-				GrainID:   grain.ID,
-				GrainType: grain.Type,
-				Status:    ExecutionNoLongerAbleToRun,
-				Error:     fmt.Errorf("unable to schedule grain %s@%s, silo is no longer able to run it", grain.Type, grain.ID),
+			return grains.GrainExecution{
+				GrainID:   g.ID,
+				GrainType: g.Type,
+				Status:    grains.ExecutionNoLongerAbleToRun,
+				Error:     fmt.Errorf("unable to schedule grains %s@%s, silo is no longer able to run it", g.Type, g.ID),
 			}
 		}
 		if result.Status == pb.ExecutionStatus_EXECUTION_OK {
-			return GrainExecution{
-				GrainID:   grain.ID,
-				GrainType: grain.Type,
-				Status:    ExecutionSuccess,
+			return grains.GrainExecution{
+				GrainID:   g.ID,
+				GrainType: g.Type,
+				Status:    grains.ExecutionSuccess,
 				Result:    result.Result,
 			}
 		} else {
-			return GrainExecution{
-				GrainID:   grain.ID,
-				GrainType: grain.Type,
-				Status:    ExecutionError,
-				Error:     fmt.Errorf("unable to schedule grain: %s", result.Result),
+			return grains.GrainExecution{
+				GrainID:   g.ID,
+				GrainType: g.Type,
+				Status:    grains.ExecutionError,
+				Error:     fmt.Errorf("unable to schedule grains: %s", result.Result),
 			}
 		}
 	}
 }
 
-func (c *Client) ScheduleGrainAsync(grain *grain.Grain, callback func(*GrainExecution)) context.Context {
+func (c *Client) ScheduleGrainAsync(grain *grains.Grain, callback func(*grains.GrainExecution)) context.Context {
 	asyncContext := context.Background()
 
 	go func(ctx context.Context) {
 		// TODO: handle cancellation
-		log.Infof(ctx, "Scheduling grain asynchronously")
+		log.Infof(ctx, "Scheduling grains asynchronously")
 		result := c.ScheduleGrain(grain)
 		log.Infof(ctx, "Grain result: %s", result.Result)
 		callback(&result)
@@ -212,7 +172,7 @@ func (c *Client) ScheduleGrainAsync(grain *grain.Grain, callback func(*GrainExec
 	return asyncContext
 }
 
-func (c *Client) ScheduleReminder(reminder *reminders.Reminder) error {
+func (c *Client) ScheduleReminder(reminder *silo.Reminder) error {
 	req := &pb.RegisterReminderRequest{
 		GrainId:      reminder.GrainId,
 		GrainType:    reminder.GrainType,

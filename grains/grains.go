@@ -1,4 +1,4 @@
-package grain
+package grains
 
 type Grain struct {
 	ID   string
