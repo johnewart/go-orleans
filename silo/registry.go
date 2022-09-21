@@ -32,7 +32,7 @@ func (h *GrainRegistry) Handle(ctx context.Context, invocation *grains.Invocatio
 	log.Infof(ctx, "Handling grain of type %s@%s", invocation.GrainType, invocation.GrainID)
 
 	if handle, ok := h.handlerMap[invocation.GrainType]; ok {
-		ch := make(chan *grains.GrainExecution, 1)
+		ch := make(chan *grains.GrainExecution, 1000)
 		handle.Invoke(ctx, invocation, ch)
 		return ch, nil
 	} else {

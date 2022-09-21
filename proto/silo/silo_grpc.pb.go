@@ -21,7 +21,7 @@ const _ = grpc.SupportPackageIsVersion7
 type SiloServiceClient interface {
 	Ping(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*PingResponse, error)
 	PlaceGrain(ctx context.Context, in *PlaceGrainRequest, opts ...grpc.CallOption) (*PlaceGrainResponse, error)
-	ExecuteGrain(ctx context.Context, in *ExecuteGrainRequest, opts ...grpc.CallOption) (*ExecuteGrainResponse, error)
+	InvokeGrain(ctx context.Context, in *GrainInvocationRequest, opts ...grpc.CallOption) (*GrainInvocationResponse, error)
 	RegisterGrainHandler(ctx context.Context, in *RegisterGrainHandlerRequest, opts ...grpc.CallOption) (SiloService_RegisterGrainHandlerClient, error)
 	ResultStream(ctx context.Context, opts ...grpc.CallOption) (SiloService_ResultStreamClient, error)
 	RegisterReminder(ctx context.Context, in *RegisterReminderRequest, opts ...grpc.CallOption) (*RegisterReminderResponse, error)
@@ -53,9 +53,9 @@ func (c *siloServiceClient) PlaceGrain(ctx context.Context, in *PlaceGrainReques
 	return out, nil
 }
 
-func (c *siloServiceClient) ExecuteGrain(ctx context.Context, in *ExecuteGrainRequest, opts ...grpc.CallOption) (*ExecuteGrainResponse, error) {
-	out := new(ExecuteGrainResponse)
-	err := c.cc.Invoke(ctx, "/silo.SiloService/ExecuteGrain", in, out, opts...)
+func (c *siloServiceClient) InvokeGrain(ctx context.Context, in *GrainInvocationRequest, opts ...grpc.CallOption) (*GrainInvocationResponse, error) {
+	out := new(GrainInvocationResponse)
+	err := c.cc.Invoke(ctx, "/silo.SiloService/InvokeGrain", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +78,7 @@ func (c *siloServiceClient) RegisterGrainHandler(ctx context.Context, in *Regist
 }
 
 type SiloService_RegisterGrainHandlerClient interface {
-	Recv() (*GrainExecutionRequest, error)
+	Recv() (*GrainInvocationRequest, error)
 	grpc.ClientStream
 }
 
@@ -86,8 +86,8 @@ type siloServiceRegisterGrainHandlerClient struct {
 	grpc.ClientStream
 }
 
-func (x *siloServiceRegisterGrainHandlerClient) Recv() (*GrainExecutionRequest, error) {
-	m := new(GrainExecutionRequest)
+func (x *siloServiceRegisterGrainHandlerClient) Recv() (*GrainInvocationRequest, error) {
+	m := new(GrainInvocationRequest)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -104,7 +104,7 @@ func (c *siloServiceClient) ResultStream(ctx context.Context, opts ...grpc.CallO
 }
 
 type SiloService_ResultStreamClient interface {
-	Send(*GrainExecutionResult) error
+	Send(*GrainInvocationResult) error
 	CloseAndRecv() (*emptypb.Empty, error)
 	grpc.ClientStream
 }
@@ -113,7 +113,7 @@ type siloServiceResultStreamClient struct {
 	grpc.ClientStream
 }
 
-func (x *siloServiceResultStreamClient) Send(m *GrainExecutionResult) error {
+func (x *siloServiceResultStreamClient) Send(m *GrainInvocationResult) error {
 	return x.ClientStream.SendMsg(m)
 }
 
@@ -143,7 +143,7 @@ func (c *siloServiceClient) RegisterReminder(ctx context.Context, in *RegisterRe
 type SiloServiceServer interface {
 	Ping(context.Context, *emptypb.Empty) (*PingResponse, error)
 	PlaceGrain(context.Context, *PlaceGrainRequest) (*PlaceGrainResponse, error)
-	ExecuteGrain(context.Context, *ExecuteGrainRequest) (*ExecuteGrainResponse, error)
+	InvokeGrain(context.Context, *GrainInvocationRequest) (*GrainInvocationResponse, error)
 	RegisterGrainHandler(*RegisterGrainHandlerRequest, SiloService_RegisterGrainHandlerServer) error
 	ResultStream(SiloService_ResultStreamServer) error
 	RegisterReminder(context.Context, *RegisterReminderRequest) (*RegisterReminderResponse, error)
@@ -160,8 +160,8 @@ func (UnimplementedSiloServiceServer) Ping(context.Context, *emptypb.Empty) (*Pi
 func (UnimplementedSiloServiceServer) PlaceGrain(context.Context, *PlaceGrainRequest) (*PlaceGrainResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PlaceGrain not implemented")
 }
-func (UnimplementedSiloServiceServer) ExecuteGrain(context.Context, *ExecuteGrainRequest) (*ExecuteGrainResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ExecuteGrain not implemented")
+func (UnimplementedSiloServiceServer) InvokeGrain(context.Context, *GrainInvocationRequest) (*GrainInvocationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method InvokeGrain not implemented")
 }
 func (UnimplementedSiloServiceServer) RegisterGrainHandler(*RegisterGrainHandlerRequest, SiloService_RegisterGrainHandlerServer) error {
 	return status.Errorf(codes.Unimplemented, "method RegisterGrainHandler not implemented")
@@ -221,20 +221,20 @@ func _SiloService_PlaceGrain_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SiloService_ExecuteGrain_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ExecuteGrainRequest)
+func _SiloService_InvokeGrain_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GrainInvocationRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SiloServiceServer).ExecuteGrain(ctx, in)
+		return srv.(SiloServiceServer).InvokeGrain(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/silo.SiloService/ExecuteGrain",
+		FullMethod: "/silo.SiloService/InvokeGrain",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SiloServiceServer).ExecuteGrain(ctx, req.(*ExecuteGrainRequest))
+		return srv.(SiloServiceServer).InvokeGrain(ctx, req.(*GrainInvocationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -248,7 +248,7 @@ func _SiloService_RegisterGrainHandler_Handler(srv interface{}, stream grpc.Serv
 }
 
 type SiloService_RegisterGrainHandlerServer interface {
-	Send(*GrainExecutionRequest) error
+	Send(*GrainInvocationRequest) error
 	grpc.ServerStream
 }
 
@@ -256,7 +256,7 @@ type siloServiceRegisterGrainHandlerServer struct {
 	grpc.ServerStream
 }
 
-func (x *siloServiceRegisterGrainHandlerServer) Send(m *GrainExecutionRequest) error {
+func (x *siloServiceRegisterGrainHandlerServer) Send(m *GrainInvocationRequest) error {
 	return x.ServerStream.SendMsg(m)
 }
 
@@ -266,7 +266,7 @@ func _SiloService_ResultStream_Handler(srv interface{}, stream grpc.ServerStream
 
 type SiloService_ResultStreamServer interface {
 	SendAndClose(*emptypb.Empty) error
-	Recv() (*GrainExecutionResult, error)
+	Recv() (*GrainInvocationResult, error)
 	grpc.ServerStream
 }
 
@@ -278,8 +278,8 @@ func (x *siloServiceResultStreamServer) SendAndClose(m *emptypb.Empty) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *siloServiceResultStreamServer) Recv() (*GrainExecutionResult, error) {
-	m := new(GrainExecutionResult)
+func (x *siloServiceResultStreamServer) Recv() (*GrainInvocationResult, error) {
+	m := new(GrainInvocationResult)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -320,8 +320,8 @@ var SiloService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _SiloService_PlaceGrain_Handler,
 		},
 		{
-			MethodName: "ExecuteGrain",
-			Handler:    _SiloService_ExecuteGrain_Handler,
+			MethodName: "InvokeGrain",
+			Handler:    _SiloService_InvokeGrain_Handler,
 		},
 		{
 			MethodName: "RegisterReminder",

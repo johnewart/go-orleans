@@ -7,20 +7,12 @@ import (
 	pb "github.com/johnewart/go-orleans/proto/silo"
 	"github.com/johnewart/go-orleans/silo"
 	"google.golang.org/grpc"
-	"time"
+	"os"
+	"strconv"
 	"zombiezen.com/go/log"
 )
 
-type GrainHandler interface {
-	Handle(*grains.Invocation) (grains.GrainExecution, error)
-}
-
-type GrainMetadata struct {
-	Type    string
-	Version string
-}
-
-type Client struct {
+type clusterClient struct {
 	clusterHost   string
 	clusterPort   int
 	connection    *grpc.ClientConn
@@ -29,59 +21,14 @@ type Client struct {
 	grainHandlers map[GrainMetadata]GrainHandler
 }
 
-type GrainCommandStreamHandler struct {
-	stream       pb.SiloService_RegisterGrainHandlerClient
-	ctx          context.Context
-	handler      GrainHandler
-	resultStream pb.SiloService_ResultStreamClient
-}
-
-func (h *GrainCommandStreamHandler) Run() {
-	log.Infof(h.ctx, "Starting command stream handler")
-	for {
-		if command, err := h.stream.Recv(); err != nil {
-			log.Warnf(h.ctx, "Unable to receive command: %v", err)
-			time.Sleep(2 * time.Second)
-		} else {
-			log.Infof(h.ctx, "Received command: %s", command)
-			invocation := &grains.Invocation{
-				GrainID:      command.GrainId,
-				GrainType:    command.GrainType,
-				MethodName:   command.MethodName,
-				Data:         command.Data,
-				InvocationId: command.RequestId,
-				Context:      h.ctx,
-			}
-			if result, err := h.handler.Handle(invocation); err != nil {
-				h.resultStream.Send(&pb.GrainExecutionResult{
-					RequestId: command.RequestId,
-					Status:    pb.ExecutionStatus_EXECUTION_ERROR,
-					TestResult: &pb.GrainExecutionResult_Error{
-						Error: err.Error(),
-					},
-				})
-			} else {
-				h.resultStream.Send(&pb.GrainExecutionResult{
-					RequestId: invocation.InvocationId,
-					Status:    pb.ExecutionStatus_EXECUTION_OK,
-					TestResult: &pb.GrainExecutionResult_Result{
-						Result: result.Result,
-					},
-				})
-			}
-
-		}
-	}
-}
-
-func NewClient(ctx context.Context, clusterHost string, clusterPort int) *Client {
+func NewClient(ctx context.Context, clusterHost string, clusterPort int) *clusterClient {
 	connAddr := fmt.Sprintf("%s:%d", clusterHost, clusterPort)
 	if conn, err := grpc.Dial(connAddr, grpc.WithInsecure()); err != nil {
 		log.Warnf(ctx, "Unable to dial %s: %v", connAddr, err)
 		return nil
 	} else {
 
-		return &Client{
+		return &clusterClient{
 			clusterHost:   clusterHost,
 			clusterPort:   clusterPort,
 			ctx:           ctx,
@@ -91,7 +38,17 @@ func NewClient(ctx context.Context, clusterHost string, clusterPort int) *Client
 	}
 }
 
-func (c *Client) RegisterGrainHandler(grainMetadata GrainMetadata, handler GrainHandler) (*GrainCommandStreamHandler, error) {
+func NewClientFromEnv(ctx context.Context) *clusterClient {
+	clusterHost := os.Getenv("CLUSTER_HOST")
+	clusterPort, _ := strconv.Atoi(os.Getenv("CLUSTER_PORT"))
+
+	log.Infof(ctx, "CLUSTER_HOST: %s", clusterHost)
+	log.Infof(ctx, "CLUSTER_PORT: %d", clusterPort)
+
+	return NewClient(ctx, clusterHost, clusterPort)
+}
+
+func (c *clusterClient) RegisterGrainHandler(grainMetadata GrainMetadata, handler GrainHandler) (*GrainCommandStreamHandler, error) {
 
 	req := &pb.RegisterGrainHandlerRequest{
 		GrainType:    grainMetadata.Type,
@@ -115,56 +72,58 @@ func (c *Client) RegisterGrainHandler(grainMetadata GrainMetadata, handler Grain
 
 		}
 	}
-
 }
 
-func (c *Client) ScheduleGrain(g *grains.Grain) grains.GrainExecution {
-	req := &pb.ExecuteGrainRequest{
-		GrainId:   g.ID,
-		GrainType: g.Type,
-		Data:      g.Data,
+func (c *clusterClient) InvokeGrain(invocation *grains.Invocation) grains.GrainExecution {
+	req := &pb.GrainInvocationRequest{
+		GrainId:    invocation.GrainID,
+		GrainType:  invocation.GrainType,
+		Data:       invocation.Data,
+		MethodName: invocation.MethodName,
+		RequestId:  invocation.InvocationId,
 	}
-	if result, err := c.pbClient.ExecuteGrain(c.ctx, req); err != nil {
+
+	if result, err := c.pbClient.InvokeGrain(c.ctx, req); err != nil {
 		return grains.GrainExecution{
-			GrainID:   g.ID,
-			GrainType: g.Type,
+			GrainID:   invocation.GrainID,
+			GrainType: invocation.GrainType,
 			Status:    grains.ExecutionError,
-			Error:     fmt.Errorf("unable to schedule grains: %v", err),
+			Error:     fmt.Errorf("unable to schedule grain: %v", err),
 		}
 	} else {
 		if result.Status == pb.ExecutionStatus_EXECUTION_NO_LONGER_ABLE {
 			return grains.GrainExecution{
-				GrainID:   g.ID,
-				GrainType: g.Type,
+				GrainID:   invocation.GrainID,
+				GrainType: invocation.GrainType,
 				Status:    grains.ExecutionNoLongerAbleToRun,
-				Error:     fmt.Errorf("unable to schedule grains %s@%s, silo is no longer able to run it", g.Type, g.ID),
+				Error:     fmt.Errorf("unable to schedule grain %s@%s, silo is no longer able to run it", invocation.GrainType, invocation.GrainID),
 			}
 		}
 		if result.Status == pb.ExecutionStatus_EXECUTION_OK {
 			return grains.GrainExecution{
-				GrainID:   g.ID,
-				GrainType: g.Type,
+				GrainID:   invocation.GrainID,
+				GrainType: invocation.GrainType,
 				Status:    grains.ExecutionSuccess,
 				Result:    result.Result,
 			}
 		} else {
 			return grains.GrainExecution{
-				GrainID:   g.ID,
-				GrainType: g.Type,
+				GrainID:   invocation.GrainID,
+				GrainType: invocation.GrainType,
 				Status:    grains.ExecutionError,
-				Error:     fmt.Errorf("unable to schedule grains: %s", result.Result),
+				Error:     fmt.Errorf("unable to schedule grain: %s", result.Result),
 			}
 		}
 	}
 }
 
-func (c *Client) ScheduleGrainAsync(grain *grains.Grain, callback func(*grains.GrainExecution)) context.Context {
+func (c *clusterClient) ScheduleGrainAsync(invocation *grains.Invocation, callback func(*grains.GrainExecution)) context.Context {
 	asyncContext := context.Background()
 
 	go func(ctx context.Context) {
 		// TODO: handle cancellation
 		log.Infof(ctx, "Scheduling grains asynchronously")
-		result := c.ScheduleGrain(grain)
+		result := c.InvokeGrain(invocation)
 		log.Infof(ctx, "Grain result: %s", result.Result)
 		callback(&result)
 	}(asyncContext)
@@ -172,7 +131,7 @@ func (c *Client) ScheduleGrainAsync(grain *grains.Grain, callback func(*grains.G
 	return asyncContext
 }
 
-func (c *Client) ScheduleReminder(reminder *silo.Reminder) error {
+func (c *clusterClient) ScheduleReminder(reminder *silo.Reminder) error {
 	req := &pb.RegisterReminderRequest{
 		GrainId:      reminder.GrainId,
 		GrainType:    reminder.GrainType,

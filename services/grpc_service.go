@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/johnewart/go-orleans/grains"
 	pb "github.com/johnewart/go-orleans/proto/silo"
 	"github.com/johnewart/go-orleans/silo"
@@ -90,24 +89,10 @@ func (s *Service) ResultStream(stream pb.SiloService_ResultStreamServer) error {
 	}
 }
 
-func (s *Service) BounceExecutionRequest(ctx context.Context, targetHostPort string, req *pb.ExecuteGrainRequest) (*pb.ExecuteGrainResponse, error) {
-	if conn, err := grpc.Dial(targetHostPort, grpc.WithInsecure()); err != nil {
-		return nil, fmt.Errorf("unable to connect to %v: %v", targetHostPort, err)
-	} else {
-		client := pb.NewSiloServiceClient(conn)
-
-		if res, bounceErr := client.ExecuteGrain(ctx, req); bounceErr != nil {
-			return nil, fmt.Errorf("unable to bounce grains: %v", bounceErr)
-		} else {
-			return res, nil
-		}
-	}
-}
-
 func (s *Service) RegisterGrainHandler(req *pb.RegisterGrainHandlerRequest, stream pb.SiloService_RegisterGrainHandlerServer) error {
 	log.Infof(s.ctx, "Registering remote grains handler for %v", req.GrainType)
 
-	c := make(chan *grains.Invocation, 100)
+	c := make(chan *grains.Invocation, 1)
 	handle := silo.RemoteGrainHandle{
 		Channel: c,
 	}
@@ -123,7 +108,7 @@ func (s *Service) RegisterGrainHandler(req *pb.RegisterGrainHandlerRequest, stre
 				s.grainResponseMap.StoreChannel(invocation.InvocationId, make(chan *grains.GrainExecution, 100))
 			}
 
-			stream.Send(&pb.GrainExecutionRequest{
+			stream.Send(&pb.GrainInvocationRequest{
 				GrainType:  req.GrainType,
 				Data:       invocation.Data,
 				GrainId:    invocation.GrainID,
@@ -134,7 +119,7 @@ func (s *Service) RegisterGrainHandler(req *pb.RegisterGrainHandlerRequest, stre
 	}
 }
 
-func (s *Service) ExecuteGrain(ctx context.Context, req *pb.ExecuteGrainRequest) (*pb.ExecuteGrainResponse, error) {
+func (s *Service) InvokeGrain(ctx context.Context, req *pb.GrainInvocationRequest) (*pb.GrainInvocationResponse, error) {
 	existing, err := s.silo.GetSilo(req.GrainType, req.GrainId)
 	if err != nil {
 		return nil, fmt.Errorf("unable to locate grains: %v", err)
@@ -149,7 +134,7 @@ func (s *Service) ExecuteGrain(ctx context.Context, req *pb.ExecuteGrainRequest)
 		} else {
 			log.Infof(ctx, "Grain %s/%s already exists at %v", req.GrainType, req.GrainId, existing)
 			shouldHandle = false
-			return s.BounceExecutionRequest(ctx, fmt.Sprintf("%v:%v", existing.IP, existing.Port), req)
+			return s.bounceExecutionRequest(ctx, fmt.Sprintf("%v:%v", existing.IP, existing.Port), req)
 		}
 	} else {
 		log.Infof(ctx, "Grain %s/%s does not exist", req.GrainType, req.GrainId)
@@ -167,17 +152,16 @@ func (s *Service) ExecuteGrain(ctx context.Context, req *pb.ExecuteGrainRequest)
 	if shouldHandle {
 
 		log.Infof(ctx, "Executing grains %v", req.GrainType)
-		invocationId := uuid.New().String()
 		invocation := &grains.Invocation{
 			GrainID:      req.GrainId,
 			GrainType:    req.GrainType,
-			MethodName:   "Invoke",
+			MethodName:   req.MethodName,
 			Data:         req.Data,
-			InvocationId: invocationId,
+			InvocationId: req.RequestId,
 		}
 
 		if resultChan, err := s.silo.Handle(ctx, invocation); err != nil {
-			return &pb.ExecuteGrainResponse{
+			return &pb.GrainInvocationResponse{
 				Status: pb.ExecutionStatus_EXECUTION_ERROR,
 				Result: []byte(err.Error()),
 			}, nil
@@ -185,20 +169,26 @@ func (s *Service) ExecuteGrain(ctx context.Context, req *pb.ExecuteGrainRequest)
 
 			if resultChan != nil {
 				// Store channel for later remote callback
-				s.grainResponseMap.StoreChannel(invocationId, resultChan)
+				s.grainResponseMap.StoreChannel(invocation.InvocationId, resultChan)
 				log.Infof(ctx, "Waiting for result of grains execution...")
 				select {
 				case r := <-resultChan:
-					log.Infof(ctx, "Got result of grains execution: %v", r)
-					return &pb.ExecuteGrainResponse{
+					log.Infof(ctx, "Got result of invocation %s: %v", invocation.InvocationId, r)
+					return &pb.GrainInvocationResponse{
 						Status: pb.ExecutionStatus_EXECUTION_OK,
 						Result: r.Result,
 					}, nil
-					// TODO: timeout / cancel
+				// TODO: timeout / cancel
+				case <-time.After(2 * time.Second):
+					log.Infof(ctx, "Timeout waiting for result of invocation %s", invocation.InvocationId)
+					return &pb.GrainInvocationResponse{
+						Status: pb.ExecutionStatus_EXECUTION_ERROR,
+						Result: []byte("timeout"),
+					}, nil
 				}
 			} else {
 				log.Infof(ctx, "No result channel returned")
-				return &pb.ExecuteGrainResponse{
+				return &pb.GrainInvocationResponse{
 					Status: pb.ExecutionStatus_EXECUTION_OK,
 					Result: []byte(""),
 				}, nil
@@ -211,11 +201,11 @@ func (s *Service) ExecuteGrain(ctx context.Context, req *pb.ExecuteGrainRequest)
 		compatibleSilo := s.silo.Locate(req.GrainType)
 		if compatibleSilo != nil {
 			log.Infof(ctx, "Bouncing grains %v to %v", req.GrainType, compatibleSilo)
-			return s.BounceExecutionRequest(ctx, fmt.Sprintf("%v:%v", compatibleSilo.IP, compatibleSilo.Port), req)
+			return s.bounceExecutionRequest(ctx, fmt.Sprintf("%v:%v", compatibleSilo.IP, compatibleSilo.Port), req)
 		}
 
 		log.Infof(ctx, "No compatible silo found for %v", req.GrainType)
-		return &pb.ExecuteGrainResponse{
+		return &pb.GrainInvocationResponse{
 			Status: pb.ExecutionStatus_EXECUTION_NO_LONGER_ABLE,
 		}, nil
 	}
@@ -238,7 +228,6 @@ func (s *Service) PlaceGrain(ctx context.Context, req *pb.PlaceGrainRequest) (*p
 	g := grains.Grain{
 		ID:   req.GrainId,
 		Type: req.GrainType,
-		Data: []byte{},
 	}
 
 	target := s.silo.GetSiloForGrain(g)
@@ -254,4 +243,18 @@ func (s *Service) PlaceGrain(ctx context.Context, req *pb.PlaceGrainRequest) (*p
 		}, nil
 	}
 
+}
+
+func (s *Service) bounceExecutionRequest(ctx context.Context, targetHostPort string, req *pb.GrainInvocationRequest) (*pb.GrainInvocationResponse, error) {
+	if conn, err := grpc.Dial(targetHostPort, grpc.WithInsecure()); err != nil {
+		return nil, fmt.Errorf("unable to connect to %v: %v", targetHostPort, err)
+	} else {
+		client := pb.NewSiloServiceClient(conn)
+
+		if res, bounceErr := client.InvokeGrain(ctx, req); bounceErr != nil {
+			return nil, fmt.Errorf("unable to bounce grains: %v", bounceErr)
+		} else {
+			return res, nil
+		}
+	}
 }

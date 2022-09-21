@@ -3,6 +3,7 @@ package grains
 import (
 	"context"
 	"fmt"
+	"github.com/google/uuid"
 )
 
 type GrainExecution struct {
@@ -33,7 +34,20 @@ type Invocation struct {
 type Grain struct {
 	ID   string
 	Type string
-	Data []byte
+}
+
+func (g Grain) Invocation(method string, data []byte) *Invocation {
+	return &Invocation{
+		GrainID:      g.ID,
+		GrainType:    g.Type,
+		MethodName:   method,
+		Data:         data,
+		InvocationId: NewInvocationID(),
+	}
+}
+
+func NewInvocationID() string {
+	return uuid.New().String()
 }
 
 type ExecutionStatus int

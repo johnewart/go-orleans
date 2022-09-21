@@ -9,9 +9,9 @@ import "google/protobuf/empty.proto";
 service SiloService {
   rpc Ping(google.protobuf.Empty) returns (PingResponse) {}
   rpc PlaceGrain(PlaceGrainRequest) returns (PlaceGrainResponse) {}
-  rpc ExecuteGrain(ExecuteGrainRequest) returns (ExecuteGrainResponse) {}
-  rpc RegisterGrainHandler(RegisterGrainHandlerRequest) returns (stream GrainExecutionRequest) {}
-  rpc ResultStream(stream GrainExecutionResult) returns (google.protobuf.Empty) {}
+  rpc InvokeGrain(GrainInvocationRequest) returns (GrainInvocationResponse) {}
+  rpc RegisterGrainHandler(RegisterGrainHandlerRequest) returns (stream GrainInvocationRequest) {}
+  rpc ResultStream(stream GrainInvocationResult) returns (google.protobuf.Empty) {}
   rpc RegisterReminder(RegisterReminderRequest) returns (RegisterReminderResponse) {}
 }
 
@@ -29,7 +29,7 @@ message RegisterReminderRequest {
   bytes data = 6;
 }
 
-message GrainExecutionResult {
+message GrainInvocationResult {
   string RequestId = 1;
   ExecutionStatus Status = 2;
   oneof test_result {
@@ -38,7 +38,7 @@ message GrainExecutionResult {
   }
 }
 
-message GrainExecutionRequest {
+message GrainInvocationRequest {
   string RequestId = 1;
   string GrainType = 2;
   string GrainId = 3;
@@ -76,13 +76,8 @@ message RegisterGrainHandlerResponse {
   RegistrationStatus status = 1; 
 }
 
-message ExecuteGrainRequest {
-  string grainType = 1;
-  string grainId = 2;
-  bytes data = 3;
-}
 
-message ExecuteGrainResponse {
+message GrainInvocationResponse {
   ExecutionStatus status = 1;
   string grainId = 2;
   bytes result = 3;

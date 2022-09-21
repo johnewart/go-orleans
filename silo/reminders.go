@@ -19,6 +19,7 @@ type Reminder struct {
 	GrainType    string
 	FireAt       time.Time
 	Period       time.Duration
+	Method       string
 	Data         []byte
 }
 
@@ -32,6 +33,17 @@ func (r Reminder) Id() string {
 
 func (r Reminder) DueTime() time.Time {
 	return r.FireAt
+}
+
+func (r Reminder) Grain() grains.Grain {
+	return grains.Grain{
+		ID:   r.GrainId,
+		Type: r.GrainType,
+	}
+}
+
+func (r Reminder) Invocation() *grains.Invocation {
+	return r.Grain().Invocation(r.Method, r.Data)
 }
 
 type ReminderRegistry struct {
@@ -74,7 +86,7 @@ func (r *ReminderRegistry) Tick(s *Silo) {
 			Data:         reminder.Data,
 			Context:      r.ctx,
 			InvocationId: fmt.Sprintf("reminder-%s-%s", reminder.ReminderName, uuid.New().String()),
-			MethodName:   "Invoke",
+			MethodName:   "Invocation",
 		}
 
 		if s.CanHandle(reminder.GrainType) {
@@ -100,7 +112,7 @@ func (r *ReminderRegistry) Tick(s *Silo) {
 				} else {
 					log.Infof(r.ctx, "Forwarding reminder %s to silo %s", reminder.ReminderName, m.HostPort())
 
-					if _, err := client.ExecuteGrain(s.ctx, &pb.ExecuteGrainRequest{
+					if _, err := client.InvokeGrain(s.ctx, &pb.GrainInvocationRequest{
 						GrainId:   reminder.GrainId,
 						GrainType: reminder.GrainType,
 						Data:      reminder.Data,

@@ -22,6 +22,15 @@ type Member struct {
 	connection *grpc.ClientConn
 }
 
+func NewClusterMember(ip string, port int, epoch int64, grains []string) *Member {
+	return &Member{
+		IP:     ip,
+		Port:   port,
+		Epoch:  epoch,
+		Grains: grains,
+	}
+}
+
 func (s *Member) HostPort() string {
 	return fmt.Sprintf("%s:%d", s.IP, s.Port)
 }
