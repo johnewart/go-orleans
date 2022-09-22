@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/johnewart/go-orleans/cluster"
+	"google.golang.org/grpc"
 	"io"
 	"sync"
 	"time"
@@ -41,17 +42,20 @@ type Service struct {
 	ctx              context.Context
 	silo             *silo.Silo
 	grainResponseMap *GrainResponseMap
+	metrics          *silo.MetricsRegistry
 }
 
 type ServiceConfig struct {
-	Silo *silo.Silo
+	Silo    *silo.Silo
+	Metrics *silo.MetricsRegistry
 }
 
 func NewSiloService(ctx context.Context, config ServiceConfig) (*Service, error) {
 	return &Service{
 		ctx:              ctx,
 		silo:             config.Silo,
-		grainResponseMap: &GrainResponseMap{}, // //make(map[string]chan *grains.GrainExecution),
+		grainResponseMap: &GrainResponseMap{},
+		metrics:          config.Metrics,
 	}, nil
 }
 
@@ -257,4 +261,17 @@ func (s *Service) bounceExecutionRequest(ctx context.Context, target *cluster.Me
 			return res, nil
 		}
 	}
+}
+
+func (s *Service) ServerInterceptor(ctx context.Context,
+	req interface{},
+	info *grpc.UnaryServerInfo,
+	handler grpc.UnaryHandler) (interface{}, error) {
+
+	return s.metrics.TimeGRPCEndpoint(info.FullMethod, func() (interface{}, error) {
+		// Calls the handler
+		h, err := handler(ctx, req)
+
+		return h, err
+	})
 }

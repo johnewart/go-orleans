@@ -50,20 +50,23 @@ func main() {
 		mp, _ := strconv.Atoi(metricsPort)
 		heartbeatInterval := 5 * time.Second
 
+		metricsRegistry := silo.NewMetricRegistry(mp)
+
 		siloConfig := silo.SiloConfig{
-			MetricsPort:      mp,
 			ServicePort:      p,
 			TableStoreDSN:    dsn,
 			RedisHostPort:    redisHostPort,
 			HearbeatInterval: heartbeatInterval,
 			RoutableIP:       ip,
 			ReminderInterval: 5 * time.Second,
+			Metrics:          metricsRegistry,
 		}
 		if siloNode, err := silo.NewSilo(ctx, siloConfig); err != nil {
 			log.Errorf(ctx, "failed to create silo: %v", err)
 		} else {
 			svcConfig := services.ServiceConfig{
-				Silo: siloNode,
+				Silo:    siloNode,
+				Metrics: metricsRegistry,
 			}
 
 			siloService, svcErr := services.NewSiloService(ctx, svcConfig)
@@ -120,7 +123,10 @@ func main() {
 			if listenErr != nil {
 				log.Errorf(ctx, "failed to listen: %v", listenErr)
 			}
-			s := grpc.NewServer()
+
+			s := grpc.NewServer(
+				grpc.UnaryInterceptor(siloService.ServerInterceptor),
+			)
 
 			log.Infof(ctx, "server listening at %v", lis.Addr())
 			pb.RegisterSiloServiceServer(s, siloService)

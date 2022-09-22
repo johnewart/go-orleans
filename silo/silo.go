@@ -24,9 +24,9 @@ type SiloConfig struct {
 	TableStoreDSN    string
 	HearbeatInterval time.Duration
 	RoutableIP       string
-	MetricsPort      int
 	ServicePort      int
 	ReminderInterval time.Duration
+	Metrics          *MetricsRegistry
 }
 
 type Silo struct {
@@ -83,7 +83,7 @@ func NewSilo(ctx context.Context, config SiloConfig) (*Silo, error) {
 		servicePort:       config.ServicePort,
 		startEpoch:        startEpoch,
 		heartbeatInterval: config.HearbeatInterval,
-		metrics:           NewMetricRegistry(config.MetricsPort),
+		metrics:           config.Metrics,
 		silo:              member,
 		grainHandler:      NewSiloGrainRegistry(),
 		grainLocator:      locationStore,

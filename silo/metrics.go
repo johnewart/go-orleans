@@ -49,6 +49,13 @@ func (r *MetricsRegistry) TimeTableSync(f func() error) error {
 	return err
 }
 
+func (r *MetricsRegistry) TimeGRPCEndpoint(id string, f func() (interface{}, error)) (interface{}, error) {
+	tsw := r.scope.Tagged(map[string]string{"id": id}).Timer("grpc_endpoint").Start()
+	result, err := f()
+	tsw.Stop()
+	return result, err
+}
+
 func (r *MetricsRegistry) Serve() error {
 	port := r.httpPort
 	http.Handle("/metrics", r.reporter.HTTPHandler())
