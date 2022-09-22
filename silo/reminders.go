@@ -86,10 +86,10 @@ func (r *ReminderRegistry) Tick(s *Silo) {
 			Data:         reminder.Data,
 			Context:      r.ctx,
 			InvocationId: fmt.Sprintf("reminder-%s-%s", reminder.ReminderName, uuid.New().String()),
-			MethodName:   "Invocation",
+			MethodName:   reminder.Method,
 		}
 
-		if s.CanHandle(reminder.GrainType) {
+		if s.CanHandle(invocation.GrainType) {
 			log.Infof(r.ctx, "Firing reminder %s for grain %s/%s", reminder.ReminderName, reminder.GrainType, reminder.GrainId)
 			if ch, err := s.Handle(r.ctx, &invocation); err != nil {
 				log.Errorf(r.ctx, "Error handling reminder: %s", err)
@@ -102,10 +102,10 @@ func (r *ReminderRegistry) Tick(s *Silo) {
 				}
 			}
 		} else {
-			log.Infof(r.ctx, "Grain %v is not compatible with silo %v", reminder.GrainType, s.silo)
+			log.Infof(r.ctx, "Grain %v is not compatible with silo %v", invocation.GrainType, s.silo)
 
-			log.Infof(r.ctx, "Locating compatible silo for %v", reminder.GrainType)
-			m := s.Locate(reminder.GrainType)
+			log.Infof(r.ctx, "Locating compatible silo for %v", invocation.GrainType)
+			m := s.Locate(invocation.GrainType)
 			if m != nil {
 				if client, err := m.SiloClient(); err != nil {
 					log.Errorf(r.ctx, "Error connecting to silo: %s", err)
@@ -113,9 +113,11 @@ func (r *ReminderRegistry) Tick(s *Silo) {
 					log.Infof(r.ctx, "Forwarding reminder %s to silo %s", reminder.ReminderName, m.HostPort())
 
 					if _, err := client.InvokeGrain(s.ctx, &pb.GrainInvocationRequest{
-						GrainId:   reminder.GrainId,
-						GrainType: reminder.GrainType,
-						Data:      reminder.Data,
+						GrainId:    invocation.GrainID,
+						GrainType:  invocation.GrainType,
+						Data:       invocation.Data,
+						MethodName: invocation.MethodName,
+						RequestId:  invocation.InvocationId,
 					}); err != nil {
 						log.Warnf(s.ctx, "Unable to submit job to %s: %v", m.HostPort(), err)
 					} else {
@@ -123,7 +125,7 @@ func (r *ReminderRegistry) Tick(s *Silo) {
 					}
 				}
 			} else {
-				log.Warnf(s.ctx, "Unable to locate silo for %s", reminder.GrainType)
+				log.Warnf(s.ctx, "Unable to locate silo for %s", invocation.GrainType)
 			}
 		}
 

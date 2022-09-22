@@ -23,14 +23,15 @@ func main() {
 
 	c := client.NewClient(ctx, clusterHost, clusterPort)
 
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < 100; i++ {
 		if err := c.ScheduleReminder(&silo.Reminder{
-			ReminderName: fmt.Sprintf("ReminderFoo-%d", i),
+			ReminderName: fmt.Sprintf("RemindMeToGreet-%d", i),
 			GrainType:    "Ohai",
 			GrainId:      fmt.Sprintf("%d", i),
 			Period:       10 * time.Second,
 			FireAt:       time.Now(),
-			Data:         []byte("Samus Aran"),
+			Method:       "Greet",
+			Data:         []byte("Mikey O'CouldntRecall"),
 		}); err != nil {
 			log.Warnf(ctx, "Unable to schedule reminder: %v", err)
 		}

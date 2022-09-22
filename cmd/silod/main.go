@@ -90,7 +90,7 @@ func main() {
 				Handler: func(ctx context.Context, invocation *grains.Invocation) (*grains.InvocationResult, error) {
 					data := invocation.Data
 					sleepTime, _ := strconv.Atoi(string(data))
-					log.Infof(ctx, "Sleep grains will sleep for %d seconds...", sleepTime)
+					log.Infof(ctx, "Sleep grain will sleep for %d seconds...", sleepTime)
 
 					time.Sleep(time.Duration(sleepTime) * time.Second)
 					sleepZzs := make([]string, 0)
