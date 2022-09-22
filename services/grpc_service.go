@@ -19,17 +19,17 @@ type GrainResponseMap struct {
 	sync.Map
 }
 
-func (g *GrainResponseMap) LoadChannel(key string) (chan *grains.GrainExecution, bool) {
+func (g *GrainResponseMap) LoadChannel(key string) (chan *grains.InvocationResult, bool) {
 	if item, ok := g.Load(key); !ok {
 		log.Infof(context.Background(), "Unable to find channel for %s", key)
 		return nil, false
 	} else {
 		log.Infof(context.Background(), "Found channel for request %s", key)
-		return item.(chan *grains.GrainExecution), true
+		return item.(chan *grains.InvocationResult), true
 	}
 }
 
-func (g *GrainResponseMap) StoreChannel(requestId string, c chan *grains.GrainExecution) error {
+func (g *GrainResponseMap) StoreChannel(requestId string, c chan *grains.InvocationResult) error {
 	log.Infof(context.Background(), "Storing channel for request id %s", requestId)
 	g.Store(requestId, c)
 	return nil
@@ -70,17 +70,21 @@ func (s *Service) ResultStream(stream pb.SiloService_ResultStreamServer) error {
 		if err != nil {
 			return err
 		}
-		log.Infof(s.ctx, "Received: %v", in)
+		log.Infof(s.ctx, "Result stream read: %v", in)
 
 		if ch, ok := s.grainResponseMap.LoadChannel(in.RequestId); ok {
 			log.Infof(s.ctx, "Found channel for grain response!")
 			if in.GetResult() != nil {
-				ch <- &grains.GrainExecution{
-					GrainID:   "grains-id",
-					GrainType: "grains-type",
-					Result:    in.GetResult(),
-					Error:     nil,
-					Status:    grains.ExecutionSuccess,
+				ch <- &grains.InvocationResult{
+					Data:         in.GetResult(),
+					InvocationId: in.RequestId,
+					Status:       grains.InvocationSuccess,
+				}
+			} else {
+				ch <- &grains.InvocationResult{
+					Data:         []byte(in.GetError()),
+					InvocationId: in.RequestId,
+					Status:       grains.InvocationFailure,
 				}
 			}
 		} else {
@@ -104,10 +108,6 @@ func (s *Service) RegisterGrainHandler(req *pb.RegisterGrainHandlerRequest, stre
 		case invocation := <-c:
 			log.Infof(s.ctx, "Execute %v", req.GrainType)
 
-			if _, ok := s.grainResponseMap.LoadChannel(invocation.InvocationId); !ok {
-				s.grainResponseMap.StoreChannel(invocation.InvocationId, make(chan *grains.GrainExecution, 100))
-			}
-
 			stream.Send(&pb.GrainInvocationRequest{
 				GrainType:  req.GrainType,
 				Data:       invocation.Data,
@@ -122,14 +122,14 @@ func (s *Service) RegisterGrainHandler(req *pb.RegisterGrainHandlerRequest, stre
 func (s *Service) InvokeGrain(ctx context.Context, req *pb.GrainInvocationRequest) (*pb.GrainInvocationResponse, error) {
 	existing, err := s.silo.GetSilo(req.GrainType, req.GrainId)
 	if err != nil {
-		return nil, fmt.Errorf("unable to locate grains: %v", err)
+		return nil, fmt.Errorf("unable to locate grain: %v", err)
 	}
 
 	shouldHandle := false
 
 	if existing != nil {
 		if s.silo.IsLocal(existing) {
-			log.Infof(s.ctx, "grains %v already located on this silo", req.GrainId)
+			log.Infof(s.ctx, "Grain %v already located on this silo", req.GrainId)
 			shouldHandle = true
 		} else {
 			log.Infof(ctx, "Grain %s/%s already exists at %v", req.GrainType, req.GrainId, existing)
@@ -138,12 +138,12 @@ func (s *Service) InvokeGrain(ctx context.Context, req *pb.GrainInvocationReques
 		}
 	} else {
 		log.Infof(ctx, "Grain %s/%s does not exist", req.GrainType, req.GrainId)
-		log.Infof(ctx, "Can we handle this grains? (%v)", req.GrainType)
+		log.Infof(ctx, "Can we handle this grain? (%v)", req.GrainType)
 		if s.silo.CanHandle(req.GrainType) {
-			log.Infof(ctx, "Yes, we can handle this grains")
+			log.Infof(ctx, "Yes, we can handle this grain")
 
 			if locErr := s.silo.RegisterGrain(req.GrainType, req.GrainId); locErr != nil {
-				return nil, fmt.Errorf("unable to record grains existence in this silo: %v", locErr)
+				return nil, fmt.Errorf("unable to record grain existence in this silo: %v", locErr)
 			}
 			shouldHandle = true
 		}
@@ -151,7 +151,7 @@ func (s *Service) InvokeGrain(ctx context.Context, req *pb.GrainInvocationReques
 
 	if shouldHandle {
 
-		log.Infof(ctx, "Executing grains %v", req.GrainType)
+		log.Infof(ctx, "Executing grain %v", req.GrainType)
 		invocation := &grains.Invocation{
 			GrainID:      req.GrainId,
 			GrainType:    req.GrainType,
@@ -176,7 +176,7 @@ func (s *Service) InvokeGrain(ctx context.Context, req *pb.GrainInvocationReques
 					log.Infof(ctx, "Got result of invocation %s: %v", invocation.InvocationId, r)
 					return &pb.GrainInvocationResponse{
 						Status: pb.ExecutionStatus_EXECUTION_OK,
-						Result: r.Result,
+						Result: r.Data,
 					}, nil
 				// TODO: timeout / cancel
 				case <-time.After(2 * time.Second):

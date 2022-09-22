@@ -95,7 +95,7 @@ func (s *Silo) Ping() int64 {
 	return s.startEpoch
 }
 
-func (s *Silo) Handle(ctx context.Context, invocation *grains.Invocation) (chan *grains.GrainExecution, error) {
+func (s *Silo) Handle(ctx context.Context, invocation *grains.Invocation) (chan *grains.InvocationResult, error) {
 	return s.grainHandler.Handle(ctx, invocation)
 }
 

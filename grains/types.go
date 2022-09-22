@@ -31,6 +31,12 @@ type Invocation struct {
 	Context      context.Context
 }
 
+type InvocationResult struct {
+	InvocationId string
+	Data         []byte
+	Status       InvocationStatus
+}
+
 type Grain struct {
 	ID   string
 	Type string
@@ -49,6 +55,13 @@ func (g Grain) Invocation(method string, data []byte) *Invocation {
 func NewInvocationID() string {
 	return uuid.New().String()
 }
+
+type InvocationStatus int
+
+const (
+	InvocationSuccess InvocationStatus = iota
+	InvocationFailure
+)
 
 type ExecutionStatus int
 

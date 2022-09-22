@@ -73,20 +73,21 @@ func main() {
 			}
 
 			helloGrain := silo.FunctionalGrainHandle{
-				Handler: func(ctx context.Context, invocation *grains.Invocation) (*grains.GrainExecution, error) {
+				Handler: func(ctx context.Context, invocation *grains.Invocation) (*grains.InvocationResult, error) {
 					log.Infof(ctx, "FunctionalHandler.hello handling %s@%s", invocation.GrainType, invocation.GrainID)
 					data := invocation.Data
 					message := fmt.Sprintf("Hello %s", string(data))
 					log.Infof(ctx, "HelloWorld: %s", data)
-					return &grains.GrainExecution{
-						Status: grains.ExecutionSuccess,
-						Result: []byte(message),
+					return &grains.InvocationResult{
+						Status:       grains.InvocationSuccess,
+						Data:         []byte(message),
+						InvocationId: invocation.InvocationId,
 					}, nil
 				},
 			}
 
 			sleepGrain := silo.FunctionalGrainHandle{
-				Handler: func(ctx context.Context, invocation *grains.Invocation) (*grains.GrainExecution, error) {
+				Handler: func(ctx context.Context, invocation *grains.Invocation) (*grains.InvocationResult, error) {
 					data := invocation.Data
 					sleepTime, _ := strconv.Atoi(string(data))
 					log.Infof(ctx, "Sleep grains will sleep for %d seconds...", sleepTime)
@@ -97,10 +98,10 @@ func main() {
 						sleepZzs = append(sleepZzs, "z")
 					}
 					response := fmt.Sprintf("%d Z%s...", sleepTime, strings.Join(sleepZzs, ""))
-					return &grains.GrainExecution{
-						GrainID: invocation.GrainID,
-						Status:  grains.ExecutionSuccess,
-						Result:  []byte(response),
+					return &grains.InvocationResult{
+						Status:       grains.InvocationSuccess,
+						Data:         []byte(response),
+						InvocationId: invocation.InvocationId,
 					}, nil
 				},
 			}
