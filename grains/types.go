@@ -31,6 +31,10 @@ type Invocation struct {
 	Context      context.Context
 }
 
+func (i *Invocation) GrainInfo() string {
+	return fmt.Sprintf("%s/%s", i.GrainType, i.GrainID)
+}
+
 type InvocationResult struct {
 	InvocationId string
 	Data         []byte

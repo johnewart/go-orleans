@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/johnewart/go-orleans/metrics"
+	"github.com/johnewart/go-orleans/reminders"
 
 	"github.com/johnewart/go-orleans/grains"
 	pb "github.com/johnewart/go-orleans/proto/silo"
@@ -50,7 +52,7 @@ func main() {
 		mp, _ := strconv.Atoi(metricsPort)
 		heartbeatInterval := 5 * time.Second
 
-		metricsRegistry := silo.NewMetricRegistry(mp)
+		metricsRegistry := metrics.NewMetricRegistry(mp)
 
 		siloConfig := silo.SiloConfig{
 			ServicePort:      p,
@@ -128,8 +130,36 @@ func main() {
 				grpc.UnaryInterceptor(siloService.ServerInterceptor),
 			)
 
-			log.Infof(ctx, "server listening at %v", lis.Addr())
 			pb.RegisterSiloServiceServer(s, siloService)
+
+			// Internal pipe service
+			pipe := ListenPipe()
+
+			go func() {
+				log.Infof(ctx, "starting internal silo service...")
+				if err := s.Serve(pipe); err != nil {
+					log.Errorf(ctx, "failed to serve: %v", err)
+				}
+			}()
+
+			pipeConn, err := grpc.Dial(`pipe`,
+				grpc.WithInsecure(),
+				grpc.WithContextDialer(func(c context.Context, s string) (net.Conn, error) {
+					return pipe.DialContext(c, `pipe`, s)
+				}),
+			)
+			if err != nil {
+				log.Errorf(ctx, "did not connect: %v", err)
+			}
+
+			c := pb.NewSiloServiceClient(pipeConn)
+
+			reminderRegistry := reminders.NewReminderRegistry(ctx, c, metricsRegistry)
+			reminderRegistry.StartReminderProcess()
+			siloService.AddReminderRegistry(reminderRegistry)
+
+			// Start external gRPC service
+			log.Infof(ctx, "server listening at %v", lis.Addr())
 			if sErr := s.Serve(lis); err != nil {
 				log.Errorf(ctx, "unable to serve: %v", sErr)
 				os.Exit(-1)

@@ -7,6 +7,7 @@ import (
 	"github.com/johnewart/go-orleans/cluster/storage"
 	"github.com/johnewart/go-orleans/cluster/table"
 	"github.com/johnewart/go-orleans/grains"
+	"github.com/johnewart/go-orleans/metrics"
 	pb "github.com/johnewart/go-orleans/proto/silo"
 	"github.com/johnewart/go-orleans/silo/locator"
 	"github.com/johnewart/go-orleans/silo/state/store"
@@ -19,6 +20,26 @@ import (
 	"zombiezen.com/go/log"
 )
 
+type GrainResponseMap struct {
+	sync.Map
+}
+
+func (g *GrainResponseMap) LoadChannel(key string) (chan *grains.InvocationResult, bool) {
+	if item, ok := g.Load(key); !ok {
+		log.Infof(context.Background(), "Unable to find channel for %s", key)
+		return nil, false
+	} else {
+		log.Infof(context.Background(), "Found channel for request %s", key)
+		return item.(chan *grains.InvocationResult), true
+	}
+}
+
+func (g *GrainResponseMap) StoreChannel(requestId string, c chan *grains.InvocationResult) error {
+	log.Infof(context.Background(), "Storing channel for request id %s", requestId)
+	g.Store(requestId, c)
+	return nil
+}
+
 type SiloConfig struct {
 	RedisHostPort    string
 	TableStoreDSN    string
@@ -26,7 +47,7 @@ type SiloConfig struct {
 	RoutableIP       string
 	ServicePort      int
 	ReminderInterval time.Duration
-	Metrics          *MetricsRegistry
+	Metrics          *metrics.MetricsRegistry
 }
 
 type Silo struct {
@@ -36,13 +57,12 @@ type Silo struct {
 	startEpoch        int64
 	ctx               context.Context
 	heartbeatInterval time.Duration
-	metrics           *MetricsRegistry
+	metrics           *metrics.MetricsRegistry
 	silo              cluster.Member
 	grainHandler      *GrainRegistry
 	grainLocator      locator.GrainLocator
-	grainResponseMap  map[string]chan *grains.GrainExecution
+	grainResponseMap  GrainResponseMap
 	reminderTicker    *time.Ticker
-	reminderRegistry  *ReminderRegistry
 	connectionPool    *util.ConnectionPool
 }
 
@@ -87,8 +107,7 @@ func NewSilo(ctx context.Context, config SiloConfig) (*Silo, error) {
 		silo:              member,
 		grainHandler:      NewSiloGrainRegistry(),
 		grainLocator:      locationStore,
-		grainResponseMap:  map[string]chan *grains.GrainExecution{},
-		reminderRegistry:  NewReminderRegistry(ctx),
+		grainResponseMap:  GrainResponseMap{},
 		connectionPool:    &util.ConnectionPool{},
 	}, nil
 }
@@ -218,13 +237,6 @@ func (s *Silo) Start() error {
 		}
 	}()
 
-	go func() {
-		log.Infof(s.ctx, "Starting reminder process")
-		if err := s.reminderRegistry.StartReminderProcess(s); err != nil {
-			log.Warnf(s.ctx, "Unable to start reminder process: %v", err)
-		}
-	}()
-
 	wg.Wait()
 	return nil
 }
@@ -232,6 +244,104 @@ func (s *Silo) Start() error {
 func (s *Silo) RegisterHandler(grainType string, handle GrainHandle) {
 	s.grainHandler.Register(grainType, handle)
 	s.Announce(grainType)
+}
+
+func (s *Silo) bounceInvocation(ctx context.Context, target *cluster.Member, invocation *grains.Invocation) (*grains.InvocationResult, error) {
+	if conn, err := s.Connection(target.HostPort()); err != nil {
+		return nil, fmt.Errorf("unable to connect to %v: %v", target.HostPort(), err)
+	} else {
+		client := pb.NewSiloServiceClient(conn)
+		req := &pb.GrainInvocationRequest{
+			GrainId:    invocation.GrainID,
+			GrainType:  invocation.GrainType,
+			MethodName: invocation.MethodName,
+			Data:       invocation.Data,
+			RequestId:  invocation.InvocationId,
+		}
+		if res, bounceErr := client.InvokeGrain(ctx, req); bounceErr != nil {
+			return nil, fmt.Errorf("unable to bounce grains: %v", bounceErr)
+		} else {
+			return &grains.InvocationResult{
+				InvocationId: invocation.InvocationId,
+				Data:         res.Result,
+				Status:       grains.InvocationSuccess,
+			}, nil
+
+		}
+	}
+}
+
+func (s *Silo) HandleInvocation(ctx context.Context, invocation *grains.Invocation) (*grains.InvocationResult, error) {
+
+	existing, err := s.GetSilo(invocation.GrainType, invocation.GrainID)
+	if err != nil {
+		return nil, fmt.Errorf("unable to locate grain: %v", err)
+	}
+
+	if existing != nil {
+		if s.IsLocal(existing) {
+			log.Infof(s.ctx, "Grain %v located on this silo", invocation.GrainID)
+			return s.InvokeGrain(invocation)
+		} else {
+			log.Infof(ctx, "Grain %s/%s exists at %s; redirecting request there", invocation.GrainType, invocation.GrainID, existing.HostPort())
+			return s.bounceInvocation(ctx, existing, invocation)
+		}
+	} else {
+		log.Infof(ctx, "Grain %s does not exist", invocation.GrainInfo())
+		log.Infof(ctx, "Can we handle this grain? (%v)", invocation.GrainType)
+		if s.CanHandle(invocation.GrainType) {
+			log.Infof(ctx, "Yes, we can handle this grain")
+
+			if locErr := s.RegisterGrain(invocation.GrainType, invocation.GrainID); locErr != nil {
+				return nil, fmt.Errorf("unable to record grain existence in this silo: %v", locErr)
+			} else {
+				// Now that we're registered, we can handle the invocation
+				return s.HandleInvocation(ctx, invocation)
+			}
+		}
+	}
+
+	// We couldn't handle it, and neither could anyone else
+	return nil, IncompatibleGrainError{}
+}
+
+func (s *Silo) HandleInvocationResult(result *grains.InvocationResult) error {
+	log.Infof(s.ctx, "Received invocation result: %v", result)
+
+	if ch, ok := s.grainResponseMap.LoadChannel(result.InvocationId); ok {
+		log.Infof(s.ctx, "Found channel for grain response!")
+		ch <- result
+		return nil
+	} else {
+		return fmt.Errorf("unable to find channel for invocation %s", result.InvocationId)
+	}
+}
+
+func (s *Silo) InvokeGrain(invocation *grains.Invocation) (*grains.InvocationResult, error) {
+	log.Infof(s.ctx, "Executing grain %s/%s", invocation.GrainType, invocation.GrainID)
+
+	if resultChan, err := s.Handle(s.ctx, invocation); err != nil {
+		return nil, err
+	} else {
+		if resultChan != nil {
+			// Store channel for later remote callback
+			if err := s.grainResponseMap.StoreChannel(invocation.InvocationId, resultChan); err != nil {
+				return nil, fmt.Errorf("unable to store grain response channel: %v", err)
+			} else {
+				log.Infof(s.ctx, "Waiting for result of grains execution...")
+				select {
+				case r := <-resultChan:
+					log.Infof(s.ctx, "Got result of invocation %s: %v", invocation.InvocationId, r)
+					return r, nil
+				// TODO: timeout / cancel
+				case <-time.After(2 * time.Second):
+					return nil, fmt.Errorf("timeout waiting for result of invocation %s", invocation.InvocationId)
+				}
+			}
+		} else {
+			return nil, fmt.Errorf("unable to execute grain - no result channel available")
+		}
+	}
 }
 
 func (s *Silo) Announce(grainType string) error {
@@ -252,11 +362,6 @@ func (s *Silo) Announce(grainType string) error {
 	} else {
 		return nil
 	}
-
-}
-
-func (s *Silo) RegisterReminder(name string, grainType string, grainId string, dueTime time.Time, period time.Duration) error {
-	return s.reminderRegistry.Register(name, grainType, grainId, dueTime, period)
 
 }
 
