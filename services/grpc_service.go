@@ -129,7 +129,7 @@ func (s *Service) RegisterReminder(ctx context.Context, req *pb.RegisterReminder
 	dueTime := time.UnixMilli(int64(req.DueTime))
 	period := time.Duration(req.Period) * time.Second
 	if s.reminderRegistry != nil {
-		if err := s.reminderRegistry.Register(req.ReminderName, req.GrainType, req.GrainId, dueTime, period); err != nil {
+		if err := s.reminderRegistry.Register(req.ReminderName, req.GrainType, req.GrainId, req.Data, dueTime, period); err != nil {
 			return nil, fmt.Errorf("unable to register reminder: %v", err)
 		} else {
 			return &pb.RegisterReminderResponse{

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/johnewart/go-orleans/grains"
 	pb "github.com/johnewart/go-orleans/proto/silo"
-	"github.com/johnewart/go-orleans/reminders"
+	"github.com/johnewart/go-orleans/reminders/data"
 	"google.golang.org/grpc"
 	"os"
 	"strconv"
@@ -131,7 +131,7 @@ func (c *clusterClient) ScheduleGrainAsync(invocation *grains.Invocation, callba
 	return asyncContext
 }
 
-func (c *clusterClient) ScheduleReminder(reminder *reminders.Reminder) error {
+func (c *clusterClient) ScheduleReminder(reminder *data.Reminder) error {
 	req := &pb.RegisterReminderRequest{
 		GrainId:      reminder.GrainId,
 		GrainType:    reminder.GrainType,

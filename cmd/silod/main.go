@@ -63,6 +63,7 @@ func main() {
 			ReminderInterval: 5 * time.Second,
 			Metrics:          metricsRegistry,
 		}
+
 		if siloNode, err := silo.NewSilo(ctx, siloConfig); err != nil {
 			log.Errorf(ctx, "failed to create silo: %v", err)
 		} else {
@@ -80,9 +81,11 @@ func main() {
 			helloGrain := silo.FunctionalGrainHandle{
 				Handler: func(ctx context.Context, invocation *grains.Invocation) (*grains.InvocationResult, error) {
 					log.Infof(ctx, "FunctionalHandler.hello handling %s@%s", invocation.GrainType, invocation.GrainID)
+					log.Infof(ctx, "FunctionalHandler.hello data: %v", invocation.Data)
+
 					data := invocation.Data
 					message := fmt.Sprintf("Hello %s", string(data))
-					log.Infof(ctx, "HelloWorld: %s", data)
+					log.Infof(ctx, "HelloWorld: %s", message)
 					return &grains.InvocationResult{
 						Status:       grains.InvocationSuccess,
 						Data:         []byte(message),
@@ -154,9 +157,19 @@ func main() {
 
 			c := pb.NewSiloServiceClient(pipeConn)
 
-			reminderRegistry := reminders.NewReminderRegistry(ctx, c, metricsRegistry)
-			reminderRegistry.StartReminderProcess()
-			siloService.AddReminderRegistry(reminderRegistry)
+			reminderConfig := reminders.ReminderConfig{
+				ReminderStoreDSN: dsn,
+				TickInterval:     5 * time.Second,
+				MetricsRegistry:  metricsRegistry,
+				SiloClient:       c,
+			}
+
+			if reminderRegistry, err := reminders.NewReminderRegistry(ctx, reminderConfig); err != nil {
+				log.Errorf(ctx, "failed to create reminder registry: %v", err)
+			} else {
+				reminderRegistry.StartReminderProcess()
+				siloService.AddReminderRegistry(reminderRegistry)
+			}
 
 			// Start external gRPC service
 			log.Infof(ctx, "server listening at %v", lis.Addr())

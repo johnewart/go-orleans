@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/johnewart/go-orleans/reminders"
+	"github.com/johnewart/go-orleans/reminders/data"
 	"os"
 	"strconv"
 	"time"
@@ -24,7 +24,7 @@ func main() {
 	c := client.NewClient(ctx, clusterHost, clusterPort)
 
 	for i := 0; i < 100; i++ {
-		if err := c.ScheduleReminder(&reminders.Reminder{
+		if err := c.ScheduleReminder(&data.Reminder{
 			ReminderName: fmt.Sprintf("RemindMeToGreet-%d", i),
 			GrainType:    "Ohai",
 			GrainId:      fmt.Sprintf("%d", i),

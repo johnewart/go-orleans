@@ -1,4 +1,4 @@
-package reminders
+package data
 
 import (
 	"time"
