@@ -46,14 +46,14 @@ func NewPostgresqlMemberStore(dsn string) (*PostgresqlStore, error) {
 	}
 }
 
-func (p *PostgresqlStore) GetMembers() ([]cluster.Member, error) {
+func (p *PostgresqlStore) GetMembers() ([]*cluster.Member, error) {
 	members := make([]PgMember, 0)
 	if result := p.db.Find(&members); result.Error != nil {
 		return nil, result.Error
 	} else {
-		records := make([]cluster.Member, 0)
+		records := make([]*cluster.Member, 0)
 		for _, member := range members {
-			records = append(records, cluster.Member{
+			records = append(records, &cluster.Member{
 				IP:     member.IP,
 				Port:   member.Port,
 				Epoch:  member.Epoch,

@@ -5,7 +5,7 @@ import (
 )
 
 type MemberStore interface {
-	GetMembers() ([]cluster.Member, error)
+	GetMembers() ([]*cluster.Member, error)
 	Announce(member *cluster.Member) error
 	GetSuspicions(member *cluster.Member) ([]cluster.Suspicion, error)
 	RemoveSuspicions(member *cluster.Member) error

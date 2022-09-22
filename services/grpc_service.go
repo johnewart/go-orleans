@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"github.com/johnewart/go-orleans/cluster"
 	"io"
 	"sync"
 	"time"
@@ -10,7 +11,6 @@ import (
 	"github.com/johnewart/go-orleans/grains"
 	pb "github.com/johnewart/go-orleans/proto/silo"
 	"github.com/johnewart/go-orleans/silo"
-	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"zombiezen.com/go/log"
 )
@@ -134,7 +134,7 @@ func (s *Service) InvokeGrain(ctx context.Context, req *pb.GrainInvocationReques
 		} else {
 			log.Infof(ctx, "Grain %s/%s already exists at %v", req.GrainType, req.GrainId, existing)
 			shouldHandle = false
-			return s.bounceExecutionRequest(ctx, fmt.Sprintf("%v:%v", existing.IP, existing.Port), req)
+			return s.bounceExecutionRequest(ctx, existing, req)
 		}
 	} else {
 		log.Infof(ctx, "Grain %s/%s does not exist", req.GrainType, req.GrainId)
@@ -201,7 +201,7 @@ func (s *Service) InvokeGrain(ctx context.Context, req *pb.GrainInvocationReques
 		compatibleSilo := s.silo.Locate(req.GrainType)
 		if compatibleSilo != nil {
 			log.Infof(ctx, "Bouncing grains %v to %v", req.GrainType, compatibleSilo)
-			return s.bounceExecutionRequest(ctx, fmt.Sprintf("%v:%v", compatibleSilo.IP, compatibleSilo.Port), req)
+			return s.bounceExecutionRequest(ctx, compatibleSilo, req)
 		}
 
 		log.Infof(ctx, "No compatible silo found for %v", req.GrainType)
@@ -245,9 +245,9 @@ func (s *Service) PlaceGrain(ctx context.Context, req *pb.PlaceGrainRequest) (*p
 
 }
 
-func (s *Service) bounceExecutionRequest(ctx context.Context, targetHostPort string, req *pb.GrainInvocationRequest) (*pb.GrainInvocationResponse, error) {
-	if conn, err := grpc.Dial(targetHostPort, grpc.WithInsecure()); err != nil {
-		return nil, fmt.Errorf("unable to connect to %v: %v", targetHostPort, err)
+func (s *Service) bounceExecutionRequest(ctx context.Context, target *cluster.Member, req *pb.GrainInvocationRequest) (*pb.GrainInvocationResponse, error) {
+	if conn, err := s.silo.Connection(target.HostPort()); err != nil {
+		return nil, fmt.Errorf("unable to connect to %v: %v", target.HostPort(), err)
 	} else {
 		client := pb.NewSiloServiceClient(conn)
 

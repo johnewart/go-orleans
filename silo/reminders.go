@@ -3,6 +3,7 @@ package silo
 import (
 	"context"
 	"fmt"
+	"github.com/johnewart/go-orleans/util"
 	"time"
 
 	"github.com/google/uuid"
@@ -50,6 +51,7 @@ type ReminderRegistry struct {
 	ctx            context.Context
 	reminderTicker *time.Ticker
 	schedule       *schedule.Scheduler[Reminder]
+	connectionPool *util.ConnectionPool
 }
 
 type ReminderCallback func(*grains.Invocation) (*grains.GrainExecution, error)
@@ -59,6 +61,7 @@ func NewReminderRegistry(ctx context.Context) *ReminderRegistry {
 		ctx:            ctx,
 		schedule:       schedule.NewScheduler[Reminder](ctx, 30*time.Second, 3),
 		reminderTicker: time.NewTicker(20 * time.Second),
+		connectionPool: &util.ConnectionPool{},
 	}
 }
 
@@ -107,11 +110,11 @@ func (r *ReminderRegistry) Tick(s *Silo) {
 			log.Infof(r.ctx, "Locating compatible silo for %v", invocation.GrainType)
 			m := s.Locate(invocation.GrainType)
 			if m != nil {
-				if client, err := m.SiloClient(); err != nil {
+				if conn, err := r.connectionPool.GetConnection(m.HostPort()); err != nil {
 					log.Errorf(r.ctx, "Error connecting to silo: %s", err)
 				} else {
 					log.Infof(r.ctx, "Forwarding reminder %s to silo %s", reminder.ReminderName, m.HostPort())
-
+					client := pb.NewSiloServiceClient(conn)
 					if _, err := client.InvokeGrain(s.ctx, &pb.GrainInvocationRequest{
 						GrainId:    invocation.GrainID,
 						GrainType:  invocation.GrainType,

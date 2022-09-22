@@ -26,7 +26,7 @@ const (
 )
 
 type MembershipTable struct {
-	Members []cluster.Member
+	Members []*cluster.Member
 	store   storage.MemberStore
 	ctx     context.Context
 	config  Config
@@ -34,7 +34,7 @@ type MembershipTable struct {
 
 func NewTable(ctx context.Context, store storage.MemberStore, config Config) *MembershipTable {
 	return &MembershipTable{
-		Members: make([]cluster.Member, 0),
+		Members: make([]*cluster.Member, 0),
 		store:   store,
 		ctx:     ctx,
 		config:  config,
@@ -118,7 +118,7 @@ func (t *MembershipTable) GetSiloForGrain(g grains.Grain) *cluster.Member {
 		for _, m := range t.Members {
 			for _, sg := range m.Grains {
 				if sg == g.Type {
-					return &m
+					return m
 				}
 			}
 		}
@@ -132,7 +132,7 @@ func (t *MembershipTable) WithMembers(f func(*cluster.Member) error) error {
 	defer t.Unlock()
 
 	for _, m := range t.Members {
-		if err := f(&m); err != nil {
+		if err := f(m); err != nil {
 			return err
 		}
 	}

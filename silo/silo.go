@@ -10,9 +10,9 @@ import (
 	pb "github.com/johnewart/go-orleans/proto/silo"
 	"github.com/johnewart/go-orleans/silo/locator"
 	"github.com/johnewart/go-orleans/silo/state/store"
+	"github.com/johnewart/go-orleans/util"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -43,6 +43,7 @@ type Silo struct {
 	grainResponseMap  map[string]chan *grains.GrainExecution
 	reminderTicker    *time.Ticker
 	reminderRegistry  *ReminderRegistry
+	connectionPool    *util.ConnectionPool
 }
 
 func NewSilo(ctx context.Context, config SiloConfig) (*Silo, error) {
@@ -88,6 +89,7 @@ func NewSilo(ctx context.Context, config SiloConfig) (*Silo, error) {
 		grainLocator:      locationStore,
 		grainResponseMap:  map[string]chan *grains.GrainExecution{},
 		reminderRegistry:  NewReminderRegistry(ctx),
+		connectionPool:    &util.ConnectionPool{},
 	}, nil
 }
 
@@ -106,7 +108,7 @@ func (s *Silo) CanHandle(grainType string) bool {
 func (s *Silo) Locate(grainType string) *cluster.Member {
 	for _, member := range s.membershipTable.Members {
 		if member.CanHandle(grainType) {
-			return &member
+			return member
 		}
 	}
 
@@ -140,7 +142,7 @@ func (s *Silo) StartMonitorProcess() error {
 
 			log.Infof(s.ctx, "Pinging %d other members in table", s.membershipTable.Size())
 			err := s.membershipTable.WithMembers(func(m *cluster.Member) error {
-				if conn, err := grpc.Dial(m.IP+":"+strconv.Itoa(int(m.Port)), grpc.WithInsecure()); err != nil {
+				if conn, err := s.Connection(m.HostPort()); err != nil {
 					log.Warnf(s.ctx, "Unable to dial %s:%d: %v", m.IP, m.Port, err)
 					log.Infof(s.ctx, "Suspect that %v is dead", m)
 					suspects = append(suspects, *m)
@@ -256,4 +258,8 @@ func (s *Silo) Announce(grainType string) error {
 func (s *Silo) RegisterReminder(name string, grainType string, grainId string, dueTime time.Time, period time.Duration) error {
 	return s.reminderRegistry.Register(name, grainType, grainId, dueTime, period)
 
+}
+
+func (s *Silo) Connection(hostPort string) (*grpc.ClientConn, error) {
+	return s.connectionPool.GetConnection(hostPort)
 }

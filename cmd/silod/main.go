@@ -106,7 +106,7 @@ func main() {
 				},
 			}
 
-			siloNode.RegisterHandler("HelloWorld", helloGrain)
+			siloNode.RegisterHandler("Ohai", helloGrain)
 			siloNode.RegisterHandler("Sleep", sleepGrain)
 
 			go func() {
