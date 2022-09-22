@@ -23,7 +23,10 @@ func main() {
 
 	c := client.NewClient(ctx, clusterHost, clusterPort)
 
-	for i := 0; i < 100; i++ {
+	start := time.Now()
+	reminderCount := 10000
+	log.Infof(ctx, "Creating %d reminders", reminderCount)
+	for i := 0; i < reminderCount; i++ {
 		if err := c.ScheduleReminder(&data.Reminder{
 			ReminderName: fmt.Sprintf("RemindMeToGreet-%d", i),
 			GrainType:    "Ohai",
@@ -36,5 +39,8 @@ func main() {
 			log.Warnf(ctx, "Unable to schedule reminder: %v", err)
 		}
 	}
+	rate := float64(reminderCount) / time.Since(start).Seconds()
+	log.Infof(ctx, "Scheduled %d reminders in %s", reminderCount, time.Since(start))
+	log.Infof(ctx, "Rate: %f reminders/second", rate)
 
 }

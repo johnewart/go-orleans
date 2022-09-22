@@ -52,6 +52,8 @@ func main() {
 		mp, _ := strconv.Atoi(metricsPort)
 		heartbeatInterval := 5 * time.Second
 
+		routableHostPort := fmt.Sprintf("%s:%d", ip, p)
+
 		metricsRegistry := metrics.NewMetricRegistry(mp)
 
 		siloConfig := silo.SiloConfig{
@@ -162,6 +164,7 @@ func main() {
 				TickInterval:     5 * time.Second,
 				MetricsRegistry:  metricsRegistry,
 				SiloClient:       c,
+				SiloHostPort:     routableHostPort,
 			}
 
 			if reminderRegistry, err := reminders.NewReminderRegistry(ctx, reminderConfig); err != nil {
