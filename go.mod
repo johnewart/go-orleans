@@ -5,7 +5,6 @@ go 1.18
 require (
 	github.com/go-redis/redis/v9 v9.0.0-beta.2
 	github.com/google/uuid v1.1.2
-	github.com/johnewart/go-timescheduler v0.0.0-00010101000000-000000000000
 	github.com/joho/godotenv v1.4.0
 	github.com/lib/pq v1.10.2
 	github.com/uber-go/tally/v4 v4.1.2
@@ -31,6 +30,7 @@ require (
 	github.com/jackc/pgx/v4 v4.16.1 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
+	github.com/johnewart/go-timescheduler v0.0.0-20220922183808-ddf03fdaac88 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_golang v1.11.0 // indirect
@@ -45,5 +45,3 @@ require (
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/genproto v0.0.0-20200526211855-cb27e3aa2013 // indirect
 )
-
-replace github.com/johnewart/go-timescheduler => ../go-timescheduler

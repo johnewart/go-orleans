@@ -31,6 +31,12 @@ func main() {
 		log.Warnf(ctx, "Error loading .env file: %v", err)
 	}
 
+	stdoutLog := log.New(os.Stdout, "", 0, nil)
+	log.SetDefault(&log.LevelFilter{
+		Min:    log.Warn, // Only show warnings or above
+		Output: stdoutLog,
+	})
+
 	port := os.Getenv("PORT")
 	metricsPort := os.Getenv("METRICS_PORT")
 	dsn := os.Getenv("DATABASE_URL")
